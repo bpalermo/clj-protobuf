@@ -15,5 +15,3 @@ pom.xml.asc
 
 # Bazel
 bazel-*
-# Per-Bazel-version lockfile; the CI matrix would fight over it (rules_clj convention)
-MODULE.bazel.lock
