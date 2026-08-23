@@ -1,0 +1,33 @@
+load("@protobuf//bazel:java_proto_library.bzl", "java_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+# The fixture protos the vendored goldens were generated from — proto2, proto3,
+# editions 2023/2024, STYLE_LEGACY, nested types, and the benchmark shapes.
+#
+# strip_import_prefix makes this directory the proto root, so imports resolve
+# as "fixtures/e2024/kitchen.proto", matching the paths in the files.
+proto_library(
+    name = "fixtures_proto",
+    srcs = glob(["**/*.proto"]),
+    # e2024/kitchen.proto option-imports java_features.proto for
+    # (pb.java).nest_in_file_class; Bazel models `import option` separately.
+    option_deps = ["@protobuf//:java_features_proto"],
+    strip_import_prefix = "/test/proto",
+    deps = [
+        "@protobuf//:duration_proto",
+        "@protobuf//:timestamp_proto",
+        "@protobuf//:wrappers_proto",
+    ],
+)
+
+# protoc's own Java backend over the same protos. This is the reference
+# implementation the byte-identity tests compare against, and — because the
+# goldens' rt/message calls hint exactly these class names — the presence of
+# this jar on the test classpath is what turns the hinted fast path ON. The
+# DynamicMessage arm is covered by the same tests running without it.
+java_proto_library(
+    name = "fixtures_java_proto",
+    deps = [":fixtures_proto"],
+)

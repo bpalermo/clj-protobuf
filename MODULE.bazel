@@ -28,4 +28,10 @@ deps.install(
 )
 use_repo(deps, "deps")
 
+# For the byte-identity fixtures: proto_library + java_proto_library over the
+# same protos the goldens were generated from, so the reference bytes come from
+# protoc's own Java backend. Same version protobuf-java is pinned at in
+# deps.edn — the descriptors must agree.
+bazel_dep(name = "protobuf", version = "35.1", dev_dependency = True)
+
 bazel_dep(name = "buildifier_prebuilt", version = "8.5.1.3", dev_dependency = True)

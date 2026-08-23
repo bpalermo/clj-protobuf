@@ -44,3 +44,28 @@ clj_test(
     ns = "clj-protobuf.contract-test",
     deps = [":contract_test_lib"],
 )
+
+# The generated Java classes are IN this target's classpath, which flips the
+# goldens' class hints on: fixture prototypes here are generated instances, so
+# this suite covers the hinted arm and rebuilds the DynamicMessage arm by hand.
+# contract_test, which has no Java fixture dep, is the pure-DynamicMessage arm
+# of the same goldens.
+clj_library(
+    name = "byte_identity_test_lib",
+    srcs = ["clj_protobuf/byte_identity_test.clj"],
+    namespaces = ["clj-protobuf.byte-identity-test"],
+    strip_prefix = "test",
+    deps = [
+        ":fixtures",
+        "//src:clj_protobuf",
+        "//test/proto:fixtures_java_proto",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_test(
+    name = "byte_identity_test",
+    ns = "clj-protobuf.byte-identity-test",
+    deps = [":byte_identity_test_lib"],
+)
