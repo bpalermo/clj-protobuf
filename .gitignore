@@ -12,3 +12,8 @@ pom.xml.asc
 .lein-failures
 .nrepl-port
 .cpcache/
+
+# Bazel
+bazel-*
+# Per-Bazel-version lockfile; the CI matrix would fight over it (rules_clj convention)
+MODULE.bazel.lock
