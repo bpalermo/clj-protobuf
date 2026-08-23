@@ -19,6 +19,7 @@
             DescriptorProtos$FileDescriptorProto
             Descriptors$Descriptor
             Descriptors$EnumDescriptor
+            Descriptors$EnumValueDescriptor
             Descriptors$FieldDescriptor
             Descriptors$FieldDescriptor$JavaType
             Descriptors$FileDescriptor
@@ -138,7 +139,8 @@
                                       ; for maps, the entry prototype
             children      ; delay of [[kebab-kw FieldHandle] ...] (message kind)
             kebab-key
-            proto-key])
+            proto-key
+            enum-kw])     ; {EnumValueDescriptor -> keyword}, enum kind only
 
 (defn- kind-of [^Descriptors$FieldDescriptor fd]
   (condp = (.getJavaType fd)
@@ -182,7 +184,14 @@
                    (when (= kind :enum) (.getEnumType fd))
                    kh vh nested children
                    (naming/field-key (.getName fd))
-                   (keyword (.getName fd)))))
+                   (keyword (.getName fd))
+                   ;; Interning a keyword per read is measurable on enum-heavy
+                   ;; messages; the value set is small and known now.
+                   (when (= kind :enum)
+                     (into {}
+                           (map (fn [^Descriptors$EnumValueDescriptor v]
+                                  [v (keyword (.getName v))]))
+                           (.getValues (.getEnumType fd)))))))
 
 (defn field
   "A precomputed handle for one field of a message prototype, looked up by its

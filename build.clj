@@ -42,7 +42,10 @@
                             [:license
                              [:name "Apache-2.0"]
                              [:url "https://www.apache.org/licenses/LICENSE-2.0"]]]]})
-  (b/copy-dir {:src-dirs ["src"] :target-dir class-dir})
+  ;; :ignores extends tools.build's defaults; without it the jar ships the
+  ;; Bazel BUILD files that live beside the sources.
+  (b/copy-dir {:src-dirs ["src"] :target-dir class-dir
+               :ignores [#"BUILD\.bazel"]})
   (b/jar {:class-dir class-dir :jar-file jar-file}))
 
 (defn install [_]

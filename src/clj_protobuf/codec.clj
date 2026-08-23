@@ -110,23 +110,31 @@
     :enum    (enum-value h v)
     :message (message-value h v opts)))
 
+;; Repeated and map fields are written with ONE setField carrying a List —
+;; protobuf-java documents List as the repeated-field value type — rather than
+;; addRepeatedField per element, which repeats the reflection-accessor lookup
+;; N times. This is where the collection-heavy benchmark shapes spend their
+;; encode time.
 (defn- set-map! [^Message$Builder b ^FieldHandle h m opts]
   (when-not (map? m) (type-mismatch h m "a map"))
   (let [fd ^Descriptors$FieldDescriptor (.-fd h)
         ^Message entry-proto (.-nested-prototype h)
         ^FieldHandle kh (.-key-handle h)
-        ^FieldHandle vh (.-val-handle h)]
+        ^FieldHandle vh (.-val-handle h)
+        out (java.util.ArrayList. (count m))]
     (doseq [[k v] m]
       (let [eb (.newBuilderForType entry-proto)]
         (.setField eb (.-fd kh) (proto-value kh k opts))
         (.setField eb (.-fd vh) (proto-value vh v opts))
-        (.addRepeatedField b fd (.build eb))))))
+        (.add out (.build eb))))
+    (.setField b fd out)))
 
 (defn- set-repeated! [^Message$Builder b ^FieldHandle h vs opts]
   (when-not (sequential? vs) (type-mismatch h vs "a sequential collection"))
-  (let [fd ^Descriptors$FieldDescriptor (.-fd h)]
+  (let [out (java.util.ArrayList. (count vs))]
     (doseq [v vs]
-      (.addRepeatedField b fd (proto-value h v opts)))))
+      (.add out (proto-value h v opts)))
+    (.setField b ^Descriptors$FieldDescriptor (.-fd h) out)))
 
 (defn set-field!
   "Set one field on a builder from a Clojure value. nil sets nothing — that is
@@ -166,7 +174,10 @@
                v
                (.toByteArray ^ByteString v))
     :enum    (case (:enums opts :keyword)
-               :keyword (keyword (.getName ^Descriptors$EnumValueDescriptor v))
+               :keyword (or (get (.-enum-kw h) v)
+                            ;; open-enum unknowns are created on the fly and
+                            ;; cannot be in the table
+                            (keyword (.getName ^Descriptors$EnumValueDescriptor v)))
                :number  (.getNumber ^Descriptors$EnumValueDescriptor v)
                :string  (.getName ^Descriptors$EnumValueDescriptor v))
     :message (message->map h v opts)))
