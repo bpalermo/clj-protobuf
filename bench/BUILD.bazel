@@ -1,0 +1,52 @@
+load("@rules_clj//clojure:defs.bzl", "clj_binary", "clj_library", "clj_test")
+
+package(default_visibility = ["//visibility:public"])
+
+clj_library(
+    name = "bench_lib",
+    srcs = ["clj_protobuf/bench.clj"],
+    namespaces = ["clj-protobuf.bench"],
+    strip_prefix = "bench",
+    deps = [
+        "//src:clj_protobuf",
+        "//test:fixtures",
+        "//test:fixtures_nohint",
+        # On the classpath so the hinted fixtures' class hints resolve, and for
+        # the raw protobuf-java arm.
+        "//test/proto:fixtures_java_proto",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:criterium_criterium",
+        "@deps//:metosin_jsonista",
+        "@deps//:org_clojure_clojure",
+        "@deps//:org_clojure_data_json",
+    ],
+)
+
+# manual: a benchmark in //... would make every CI run pay minutes of
+# criterium. The smoke test below keeps this code compiling and its arms
+# producing agreeing output on every bazel test //... instead.
+clj_binary(
+    name = "run",
+    main = "clj-protobuf.bench",
+    tags = ["manual"],
+    deps = [":bench_lib"],
+)
+
+clj_library(
+    name = "smoke_test_lib",
+    srcs = ["clj_protobuf/bench_smoke_test.clj"],
+    namespaces = ["clj-protobuf.bench-smoke-test"],
+    strip_prefix = "bench",
+    deps = [
+        ":bench_lib",
+        "//src:clj_protobuf",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_test(
+    name = "smoke_test",
+    ns = "clj-protobuf.bench-smoke-test",
+    deps = [":smoke_test_lib"],
+)

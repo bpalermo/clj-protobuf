@@ -8,7 +8,10 @@ package(default_visibility = ["//visibility:public"])
 # whenever those change — these files are the contract, not hand-written code.
 clj_library(
     name = "fixtures",
-    srcs = glob(["fixtures/**/*.clj"]),
+    srcs = glob(
+        ["fixtures/**/*.clj"],
+        exclude = ["fixtures/fixtures/bench_nohint/**"],
+    ),
     namespaces = [
         "fixtures.p2.kitchen",
         "fixtures.p3.kitchen",
@@ -18,6 +21,21 @@ clj_library(
         "fixtures.nested.nested",
         "fixtures.bench.shapes",
     ],
+    strip_prefix = "test/fixtures",
+    deps = [
+        "//src:clj_protobuf",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+# The benchmark's DynamicMessage arm: the same shapes regenerated with Java
+# class hints that cannot resolve (com.acme.absent.nohint.*), so the hint
+# fallback engages no matter what is on the classpath.
+clj_library(
+    name = "fixtures_nohint",
+    srcs = ["fixtures/fixtures/bench_nohint/shapes.clj"],
+    namespaces = ["fixtures.bench-nohint.shapes"],
     strip_prefix = "test/fixtures",
     deps = [
         "//src:clj_protobuf",
