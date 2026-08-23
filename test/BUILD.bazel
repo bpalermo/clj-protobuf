@@ -44,6 +44,27 @@ clj_library(
     ],
 )
 
+# interop=true output (ns_prefix=interop keeps them apart from the standard
+# fixtures): the fast typed arm, validated here because this repo owns the
+# behavioral tests of emitted code.
+clj_library(
+    name = "fixtures_interop",
+    srcs = glob(["fixtures/interop/**/*.clj"]),
+    namespaces = [
+        "interop.fixtures.e2024.kitchen",
+        "interop.fixtures.bench.shapes",
+    ],
+    strip_prefix = "test/fixtures",
+    deps = [
+        "//src:clj_protobuf",
+        # The fast arm's classes are a load-time requirement — the documented
+        # interop=true contract.
+        "//test/proto:fixtures_java_proto",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
 clj_library(
     name = "contract_test_lib",
     srcs = ["clj_protobuf/contract_test.clj"],
@@ -106,6 +127,27 @@ clj_test(
     name = "invoker_test",
     ns = "clj-protobuf.invoker-test",
     deps = [":invoker_test_lib"],
+)
+
+clj_library(
+    name = "interop_test_lib",
+    srcs = ["clj_protobuf/interop_test.clj"],
+    namespaces = ["clj-protobuf.interop-test"],
+    strip_prefix = "test",
+    deps = [
+        ":fixtures",
+        ":fixtures_interop",
+        "//src:clj_protobuf",
+        "//test/proto:fixtures_java_proto",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_test(
+    name = "interop_test",
+    ns = "clj-protobuf.interop-test",
+    deps = [":interop_test_lib"],
 )
 
 clj_library(
