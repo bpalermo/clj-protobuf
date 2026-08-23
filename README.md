@@ -54,10 +54,43 @@ Records and plain maps are interchangeable everywhere a message value goes.
 
 Generated code carries a Java-class hint per message. When the matching
 `java_proto_library` classes are on the classpath the prototypes silently
-switch from `DynamicMessage` to the generated classes — measured ~45% faster
-to encode and ~46% lighter on allocation for small messages, with byte-for-byte
+switch from `DynamicMessage` to the generated classes, with byte-for-byte
 identical output (the byte-identity suite proves both arms against protoc's own
-Java backend). Benchmarks against JSON live under `bench/`.
+Java backend).
+
+Measured with `bazel run //bench:run -- quick` (criterium; JDK 21, Linux
+x86_64; mean latency / allocated bytes per op; full Clojure-data-to-bytes
+pipelines). `java` is protoc's generated builders driven directly; `jsonista`
+and `data.json` carry the same value as JSON:
+
+### Encode (Clojure data → bytes)
+
+| shape | java | hinted | dynamic | jsonista | data.json |
+|---|---|---|---|---|---|
+| tiny | 56 ns / 56 B | 200 ns / 136 B | 486 ns / 448 B | 367 ns / 608 B | 884 ns / 624 B |
+| flat | 609 ns / 400 B | 1.16 µs / 488 B | 1.74 µs / 880 B | 1.32 µs / 1248 B | 3.16 µs / 2208 B |
+| deep | — | 1.35 µs / 744 B | 2.11 µs / 1712 B | 738 ns / 1032 B | 2.35 µs / 1392 B |
+| wide-repeated | — | 4.36 µs / 2944 B | 4.30 µs / 3152 B | 2.74 µs / 1096 B | 6.67 µs / 4216 B |
+| repeated-messages | 2.57 µs / 2360 B | 11.22 µs / 4440 B | 15.80 µs / 9840 B | 3.84 µs / 4024 B | 19.01 µs / 10424 B |
+| map-heavy | — | 12.17 µs / 13744 B | 35.42 µs / 25504 B | 6.12 µs / 3616 B | 13.64 µs / 10720 B |
+
+### Decode (bytes → Clojure data)
+
+| shape | java | hinted | dynamic | jsonista | data.json |
+|---|---|---|---|---|---|
+| tiny | 94 ns / 192 B | 239 ns / 232 B | 590 ns / 608 B | 678 ns / 1176 B | 591 ns / 1584 B |
+| flat | 346 ns / 432 B | 1.18 µs / 600 B | 1.95 µs / 1096 B | 2.07 µs / 2248 B | 3.27 µs / 5744 B |
+| deep | — | 1.54 µs / 1288 B | 2.79 µs / 2480 B | 1.42 µs / 2208 B | 1.45 µs / 3840 B |
+| wide-repeated | — | 3.53 µs / 4344 B | 6.90 µs / 4712 B | 3.79 µs / 4144 B | 3.06 µs / 11496 B |
+| repeated-messages | 2.07 µs / 3328 B | 12.00 µs / 8448 B | 18.25 µs / 15712 B | 11.75 µs / 10920 B | 12.01 µs / 24664 B |
+| map-heavy | — | 15.19 µs / 15432 B | 28.91 µs / 29160 B | 9.32 µs / 5816 B | 14.59 µs / 21376 B |
+
+Read it honestly: the hinted arm is ~2.4× faster than DynamicMessage with ~3×
+less allocation on small messages, and beats JSON both ways there; jackson
+wins on collection-heavy shapes, where the reflection-API cost of building
+repeated/map entries dominates. Wire compactness and schema are protobuf's
+argument regardless. The shapes are archetypes precisely because no single
+number describes 'protobuf vs JSON'.
 
 ## Building
 
