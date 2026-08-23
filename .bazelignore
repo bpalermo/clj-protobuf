@@ -5,3 +5,4 @@ bazel-bin
 bazel-out
 bazel-clj-protobuf
 bazel-testlogs
+target
