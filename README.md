@@ -67,12 +67,12 @@ and `data.json` carry the same value as JSON:
 
 | shape | java | hinted | dynamic | jsonista | data.json |
 |---|---|---|---|---|---|
-| tiny | 56 ns / 56 B | 200 ns / 136 B | 486 ns / 448 B | 367 ns / 608 B | 884 ns / 624 B |
-| flat | 609 ns / 400 B | 1.16 µs / 488 B | 1.74 µs / 880 B | 1.32 µs / 1248 B | 3.16 µs / 2208 B |
-| deep | — | 1.35 µs / 744 B | 2.11 µs / 1712 B | 738 ns / 1032 B | 2.35 µs / 1392 B |
-| wide-repeated | — | 4.36 µs / 2944 B | 4.30 µs / 3152 B | 2.74 µs / 1096 B | 6.67 µs / 4216 B |
-| repeated-messages | 2.57 µs / 2360 B | 11.22 µs / 4440 B | 15.80 µs / 9840 B | 3.84 µs / 4024 B | 19.01 µs / 10424 B |
-| map-heavy | — | 12.17 µs / 13744 B | 35.42 µs / 25504 B | 6.12 µs / 3616 B | 13.64 µs / 10720 B |
+| tiny | 69 ns / 96 B | 135 ns / 136 B | 406 ns / 448 B | 280 ns / 608 B | 884 ns / 624 B |
+| flat | 495 ns / 400 B | 860 ns / 488 B | 1.61 µs / 880 B | 1.12 µs / 1248 B | 3.37 µs / 2208 B |
+| deep | — | 1.10 µs / 744 B | 1.90 µs / 1712 B | 767 ns / 1080 B | 2.39 µs / 1392 B |
+| wide-repeated | — | 4.03 µs / 3184 B | 4.35 µs / 2688 B | 2.30 µs / 1096 B | 7.39 µs / 4216 B |
+| repeated-messages | 2.31 µs / 2360 B | 6.96 µs / 4560 B | 13.53 µs / 9816 B | 3.58 µs / 4024 B | 17.23 µs / 10424 B |
+| map-heavy | — | 11.06 µs / 13984 B | 25.12 µs / 25040 B | 3.72 µs / 3600 B | 12.44 µs / 10720 B |
 
 ### Decode (bytes → Clojure data)
 
@@ -85,10 +85,11 @@ and `data.json` carry the same value as JSON:
 | repeated-messages | 2.07 µs / 3328 B | 12.00 µs / 8448 B | 18.25 µs / 15712 B | 11.75 µs / 10920 B | 12.01 µs / 24664 B |
 | map-heavy | — | 15.19 µs / 15432 B | 28.91 µs / 29160 B | 9.32 µs / 5816 B | 14.59 µs / 21376 B |
 
-Read it honestly: the hinted arm is ~2.4× faster than DynamicMessage with ~3×
-less allocation on small messages, and beats JSON both ways there; jackson
-wins on collection-heavy shapes, where the reflection-API cost of building
-repeated/map entries dominates. Wire compactness and schema are protobuf's
+Read it honestly: the hinted arm sits ~2× off protoc's own generated code and
+~3× ahead of DynamicMessage on small messages, beating JSON both ways there
+(typed-accessor invokers via LambdaMetafactory close most of the reflection
+gap; see docs/design.md); jackson wins on collection-heavy shapes, where
+per-entry message building dominates. Wire compactness and schema are protobuf's
 argument regardless. The shapes are archetypes precisely because no single
 number describes 'protobuf vs JSON'.
 

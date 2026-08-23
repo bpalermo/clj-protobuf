@@ -89,6 +89,26 @@ clj_test(
 )
 
 clj_library(
+    name = "invoker_test_lib",
+    srcs = ["clj_protobuf/invoker_test.clj"],
+    namespaces = ["clj-protobuf.invoker-test"],
+    strip_prefix = "test",
+    deps = [
+        ":fixtures",
+        "//src:clj_protobuf",
+        "//test/proto:fixtures_java_proto",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_test(
+    name = "invoker_test",
+    ns = "clj-protobuf.invoker-test",
+    deps = [":invoker_test_lib"],
+)
+
+clj_library(
     name = "errors_test_lib",
     srcs = ["clj_protobuf/errors_test.clj"],
     namespaces = ["clj-protobuf.errors-test"],

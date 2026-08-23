@@ -71,7 +71,18 @@ obtained through `newBuilderForField`, so it has the right concrete class for
 this prototype's lineage in both pools, plus delayed child handles (delayed
 because descriptors can be cyclic). Generated code stores handles in vars, so
 the descriptor API is walked once per field per namespace load, and the codec
-never touches it again. The whole library compiles reflection-free; a CI gate
+never touches it again.
+
+Hinted-arm handles for singular non-enum fields also carry typed-accessor
+invokers: LambdaMetafactory-generated functions over the generated class's
+`setX`/`getX`/`hasX`, built (and verified via `findVirtual`) at handle time,
+measured at direct-interop speed. The accessor name is derived by protoc's
+UnderscoresToCamelCase rule, and every failure — underivable name, protoc's
+conflict-mangled accessors, LambdaMetafactory being unavailable as it is
+under native-image — silently yields no invoker and the reflection path
+serves, same philosophy as the class hint: wrong is never incorrect, only
+unoptimized. Repeated and map fields instead batch into a single
+`setField`/`getField` (one accessor lookup per field); enums stay reflective. The whole library compiles reflection-free; a CI gate
 recompiles every namespace under `*warn-on-reflection*` and fails on a single
 warning, because one reflective call site on this path silently costs an
 order of magnitude.
