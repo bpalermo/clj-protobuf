@@ -34,7 +34,8 @@
             Descriptors$EnumValueDescriptor
             Descriptors$FieldDescriptor
             Message
-            Message$Builder]))
+            Message$Builder]
+           [java.util.function BiFunction Function]))
 
 (set! *warn-on-reflection* true)
 
@@ -147,8 +148,15 @@
        (cond
          (.-map? handle)      (set-map! b handle v opts)
          (.-repeated? handle) (set-repeated! b handle v opts)
-         :else (.setField b ^Descriptors$FieldDescriptor (.-fd handle)
-                          (proto-value handle v opts)))))
+         :else
+         (let [v' (proto-value handle v opts)]
+           ;; The invoker replaces ONLY the accessor call: same converted
+           ;; value, same builder, protobuf-java's FieldAccessorTable lookup
+           ;; skipped. Absent (DynamicMessage arm, underivable accessor,
+           ;; native-image) the reflection API is the path, as ever.
+           (if-let [inv (.-set-invoker handle)]
+             (.apply ^BiFunction inv b v')
+             (.setField b ^Descriptors$FieldDescriptor (.-fd handle) v'))))))
    builder))
 
 (declare get-field)
@@ -211,6 +219,13 @@
            (mapv #(clj-value handle % opts) vs)))
 
        :else
-       (if (and (.-has-presence? handle) (not (.hasField m fd)))
-         nil
-         (clj-value handle (.getField m fd) opts))))))
+       (let [absent? (and (.-has-presence? handle)
+                          (if-let [hs (.-has-invoker handle)]
+                            (not (.apply ^Function hs m))
+                            (not (.hasField m fd))))]
+         (when-not absent?
+           (clj-value handle
+                      (if-let [g (.-get-invoker handle)]
+                        (.apply ^Function g m)
+                        (.getField m fd))
+                      opts)))))))

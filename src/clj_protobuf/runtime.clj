@@ -13,7 +13,8 @@
   API per call. Handles are built against a specific prototype, so a
   message-typed field's nested prototype has the right concrete class in both
   the DynamicMessage and generated-class arms."
-  (:require [clj-protobuf.impl.naming :as naming]
+  (:require [clj-protobuf.impl.invoke :as invoke]
+            [clj-protobuf.impl.naming :as naming]
             [clojure.string :as str])
   (:import [com.google.protobuf
             DescriptorProtos$FileDescriptorProto
@@ -140,7 +141,34 @@
             children      ; delay of [[kebab-kw FieldHandle] ...] (message kind)
             kebab-key
             proto-key
-            enum-kw])     ; {EnumValueDescriptor -> keyword}, enum kind only
+            enum-kw       ; {EnumValueDescriptor -> keyword}, enum kind only
+            set-invoker   ; BiFunction over the typed setter, hinted arm only
+            get-invoker   ; Function over the typed getter, hinted arm only
+            has-invoker]) ; Function over hasX(), presence fields, hinted arm
+
+(def ^:private invoker-param-class
+  {:int Integer/TYPE :long Long/TYPE :float Float/TYPE :double Double/TYPE
+   :boolean Boolean/TYPE :string String
+   :bytes com.google.protobuf.ByteString})
+
+(defn- field-invokers
+  "Typed-accessor invokers for a singular non-enum field of a generated-class
+  prototype; {:set nil :get nil :has nil}-shaped, each independently nil when
+  underivable. DynamicMessage prototypes get none — the reflection API is
+  their only surface."
+  [^Message prototype ^Descriptors$FieldDescriptor fd kind ^Message nested-proto has-presence?]
+  (if (instance? DynamicMessage prototype)
+    {}
+    (let [suffix        (invoke/accessor-suffix (.getName fd))
+          builder-class (.getClass (.newBuilderForType prototype))
+          msg-class     (.getClass prototype)
+          value-class   (if (= kind :message)
+                          (.getClass nested-proto)
+                          (invoker-param-class kind))]
+      {:set (invoke/setter-invoker builder-class (str "set" suffix) value-class)
+       :get (invoke/getter-invoker msg-class (str "get" suffix) value-class)
+       :has (when has-presence?
+              (invoke/getter-invoker msg-class (str "has" suffix) Boolean/TYPE))})))
 
 (defn- kind-of [^Descriptors$FieldDescriptor fd]
   (condp = (.getJavaType fd)
@@ -180,7 +208,10 @@
                               [(naming/field-key (.getName cfd))
                                (make-handle nested cfd)])
                             (.getFields (.getDescriptorForType nested)))))]
-    (->FieldHandle fd kind repeated map-field (.hasPresence fd)
+    (let [invokers (if (or repeated map-field (= kind :enum))
+                     {}
+                     (field-invokers prototype fd kind nested (.hasPresence fd)))]
+      (->FieldHandle fd kind repeated map-field (.hasPresence fd)
                    (when (= kind :enum) (.getEnumType fd))
                    kh vh nested children
                    (naming/field-key (.getName fd))
@@ -191,7 +222,8 @@
                      (into {}
                            (map (fn [^Descriptors$EnumValueDescriptor v]
                                   [v (keyword (.getName v))]))
-                           (.getValues (.getEnumType fd)))))))
+                           (.getValues (.getEnumType fd))))
+                   (:set invokers) (:get invokers) (:has invokers)))))
 
 (defn field
   "A precomputed handle for one field of a message prototype, looked up by its
