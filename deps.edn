@@ -11,11 +11,15 @@
  :aliases
  {;; clojure -X:test — the non-Bazel leg CI runs to prove the plain-clj
   ;; consumer path works. Bazel runs the same tests via clj_test targets.
+  ;; byte-identity-test is deliberately absent from the patterns: its protoc
+  ;; reference classes come from Bazel's java_proto_library, which plain clj
+  ;; cannot build. Bazel runs the complete suite.
   :test {:extra-paths ["test" "test/fixtures"]
          :extra-deps {io.github.cognitect-labs/test-runner
                       {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
          :main-opts ["-m" "cognitect.test-runner"]
-         :exec-fn cognitect.test-runner.api/test}
+         :exec-fn cognitect.test-runner.api/test
+         :exec-args {:patterns ["clj-protobuf\\.(contract|errors|reflection)-test"]}}
   ;; clojure -T:build jar|install|deploy — the Clojars path. Deliberately the
   ;; only place tools.build appears; Bazel owns build/test everywhere else.
   :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.5"}

@@ -69,3 +69,42 @@ clj_test(
     ns = "clj-protobuf.byte-identity-test",
     deps = [":byte_identity_test_lib"],
 )
+
+clj_library(
+    name = "errors_test_lib",
+    srcs = ["clj_protobuf/errors_test.clj"],
+    namespaces = ["clj-protobuf.errors-test"],
+    strip_prefix = "test",
+    deps = [
+        ":fixtures",
+        "//src:clj_protobuf",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_test(
+    name = "errors_test",
+    ns = "clj-protobuf.errors-test",
+    deps = [":errors_test_lib"],
+)
+
+# Depends on the SOURCE variant so require :reload-all has .clj files to
+# recompile under *warn-on-reflection*.
+clj_library(
+    name = "reflection_test_lib",
+    srcs = ["clj_protobuf/reflection_test.clj"],
+    namespaces = ["clj-protobuf.reflection-test"],
+    strip_prefix = "test",
+    deps = [
+        "//src:clj_protobuf_source",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_test(
+    name = "reflection_test",
+    ns = "clj-protobuf.reflection-test",
+    deps = [":reflection_test_lib"],
+)

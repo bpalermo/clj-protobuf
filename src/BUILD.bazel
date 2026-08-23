@@ -26,3 +26,28 @@ clj_library(
         "@deps//:org_clojure_clojure",
     ],
 )
+
+# The same namespaces as sources, uncompiled — what the published Clojars jar
+# actually ships, and what the reflection gate recompiles with
+# *warn-on-reflection* bound so a reflective hot path fails the build.
+clj_library(
+    name = "clj_protobuf_source",
+    srcs = glob([
+        "clj_protobuf/**/*.clj",
+        "clj_grpc/**/*.clj",
+    ]),
+    aot = False,
+    namespaces = [
+        "clj-protobuf.impl.naming",
+        "clj-protobuf.runtime",
+        "clj-protobuf.codec",
+        "clj-protobuf.core",
+        "clj-grpc.runtime",
+        "clj-grpc.codec",
+    ],
+    strip_prefix = "src",
+    deps = [
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)

@@ -1,0 +1,100 @@
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag to release, e.g. v0.1.5"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  # Fail in seconds on a misconfigured release, before anything can reach the
+  # deploy token.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # A tag can be created on any commit, including one never merged or
+      # reviewed. This is what makes "released" mean "merged to main".
+      - name: the tag must point at a commit on main
+        env:
+          TAG: ${{ inputs.tag_name || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')
+          type=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type')
+          if [ "$type" = "tag" ]; then
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$sha" --jq '.object.sha')
+          fi
+          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$sha" --jq '.status')
+          echo "$TAG -> $sha is '$status' relative to main"
+          case "$status" in
+            identical|behind) ;;
+            *)
+              echo "::error::$TAG points at $sha, which is not on main ($status)." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: version.edn must agree with the tag
+        env:
+          TAG: ${{ inputs.tag_name || github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          declared=$(grep -oE '\{:version "[^"]+"' version.edn | cut -d'"' -f2)
+          if [ "$declared" != "$version" ]; then
+            echo "::error::version.edn declares '$declared' but the tag is '$version'" >&2
+            exit 1
+          fi
+          echo "releasing $version"
+
+  test:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          disk-cache: release
+          repository-cache: true
+          cache-save: false
+      - run: bazel test //...
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    # The environment holds the Clojars deploy token and only admits v* tags.
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+
+      - name: deploy to Clojars
+        env:
+          CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
+          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
+        run: clojure -T:build deploy
+
+      - name: GitHub release
+        env:
+          TAG: ${{ inputs.tag_name || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" --generate-notes target/clj-protobuf-*.jar

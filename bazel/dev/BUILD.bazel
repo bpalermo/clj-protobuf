@@ -1,0 +1,30 @@
+"""Development-only targets: formatting.
+
+    bazel run  //bazel/dev:format        rewrite files in place
+    bazel test //bazel/dev:format_test   fail if anything is unformatted
+
+so `bazel test //...` covers formatting and CI needs no separate lint job.
+"""
+
+load("@buildifier_prebuilt//:rules.bzl", "buildifier", "buildifier_test")
+
+package(default_visibility = ["//visibility:private"])
+
+buildifier(
+    name = "format",
+    exclude_patterns = ["./.git/*"],
+    lint_mode = "fix",
+    mode = "fix",
+)
+
+# no_sandbox, because the point is to check the real tree rather than a copy of
+# the files someone remembered to list.
+buildifier_test(
+    name = "format_test",
+    size = "small",
+    exclude_patterns = ["./.git/*"],
+    lint_mode = "warn",
+    mode = "check",
+    no_sandbox = True,
+    workspace = "//:MODULE.bazel",
+)

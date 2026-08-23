@@ -33,5 +33,7 @@ use_repo(deps, "deps")
 # protoc's own Java backend. Same version protobuf-java is pinned at in
 # deps.edn — the descriptors must agree.
 bazel_dep(name = "protobuf", version = "35.1", dev_dependency = True)
-
 bazel_dep(name = "buildifier_prebuilt", version = "8.5.1.3", dev_dependency = True)
+
+# Solely for the sh_test wrapping the version-consistency check.
+bazel_dep(name = "rules_shell", version = "0.8.0", dev_dependency = True)

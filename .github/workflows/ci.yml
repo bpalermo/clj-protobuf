@@ -1,0 +1,92 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bazel:
+    name: bazel ${{ matrix.bazel }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        bazel: ["8.6.0", "9.2.0"]
+    env:
+      # Takes precedence over .bazelversion, so one checkout covers both majors.
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          # Keyed by Bazel version: the two majors must not share an output cache.
+          disk-cache: ${{ github.workflow }}-${{ matrix.bazel }}
+          repository-cache: true
+          # Pull requests RESTORE caches but never SAVE them: only reviewed code
+          # should populate a cache a later trusted build consumes. Gated on the
+          # ref rather than the event, because workflow_dispatch can target any
+          # branch.
+          cache-save: ${{ github.ref == 'refs/heads/main' }}
+
+      # Formatting and version consistency are test targets, so this covers them.
+      - name: bazel test //...
+        run: bazel test //...
+
+  # The path a Clojars consumer actually takes: plain clj, no Bazel. The
+  # byte-identity suite needs Bazel-built protoc reference classes and is
+  # excluded here by the :test alias's patterns; everything else runs.
+  clj:
+    name: plain clj
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+
+      - name: tests without Bazel
+        run: clojure -X:test
+
+      - name: the Clojars artifact builds
+        run: clojure -T:build jar
+
+  # The single check branch protection requires. A required status check is
+  # matched by check-run name, which for a matrix is the generated one; bump a
+  # version in the matrix and a directly-required check never reports again,
+  # blocking every pull request. Requiring one aggregate leaves the matrix free
+  # to change. if: always() so it runs even when a leg fails — a skipped job
+  # reports nothing, and a required check that never reports blocks instead of
+  # failing.
+  ci:
+    name: ci
+    needs: [bazel, clj]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: every job this depends on must have succeeded
+        run: |
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "results: ${results}"
+          for result in ${results}; do
+            if [ "${result}" != "success" ]; then
+              echo "::error::a required job reported '${result}'" >&2
+              exit 1
+            fi
+          done
