@@ -1,0 +1,29 @@
+;; An ordinary deps.edn: the file a Clojure project already has is the file the
+;; build reads. Bazel consumes it through the committed deps.lock.json (regenerate
+;; with rules_clj's //tools/lock — that is the only way it should ever change),
+;; and Clojars consumers see these same coordinates in the published pom.
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.5"}
+        ;; The entire runtime surface: descriptors, DynamicMessage, builders,
+        ;; wire encoding. Edition 2024 needs the 4.x runtime; 4.35.x is what
+        ;; protoc-gen-clojure probes EDITION_2024 against.
+        com.google.protobuf/protobuf-java {:mvn/version "4.35.1"}}
+ :aliases
+ {;; clojure -X:test — the non-Bazel leg CI runs to prove the plain-clj
+  ;; consumer path works. Bazel runs the same tests via clj_test targets.
+  :test {:extra-paths ["test" "test/fixtures"]
+         :extra-deps {io.github.cognitect-labs/test-runner
+                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+         :main-opts ["-m" "cognitect.test-runner"]
+         :exec-fn cognitect.test-runner.api/test}
+  ;; clojure -T:build jar|install|deploy — the Clojars path. Deliberately the
+  ;; only place tools.build appears; Bazel owns build/test everywhere else.
+  :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.5"}
+                 slipset/deps-deploy {:mvn/version "0.2.2"}}
+          :ns-default build}
+  ;; bazel run //bench:run resolves these hermetically through the lockfile;
+  ;; the alias exists so `clj -M:bench` works for interactive profiling too.
+  :bench {:extra-paths ["bench" "test/fixtures"]
+          :extra-deps {criterium/criterium {:mvn/version "0.4.6"}
+                       metosin/jsonista {:mvn/version "0.3.13"}
+                       org.clojure/data.json {:mvn/version "2.5.2"}}}}}

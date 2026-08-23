@@ -1,0 +1,28 @@
+load("@rules_clj//clojure:defs.bzl", "clj_library")
+
+package(default_visibility = ["//visibility:public"])
+
+# The whole library, compat aliases included, as one target: the namespaces are
+# a single dependency chain (naming <- runtime <- codec <- core <- aliases) and
+# the published jar ships them together anyway. Namespace order is compile
+# order.
+clj_library(
+    name = "clj_protobuf",
+    srcs = glob([
+        "clj_protobuf/**/*.clj",
+        "clj_grpc/**/*.clj",
+    ]),
+    namespaces = [
+        "clj-protobuf.impl.naming",
+        "clj-protobuf.runtime",
+        "clj-protobuf.codec",
+        "clj-protobuf.core",
+        "clj-grpc.runtime",
+        "clj-grpc.codec",
+    ],
+    strip_prefix = "src",
+    deps = [
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)

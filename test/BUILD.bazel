@@ -1,0 +1,46 @@
+load("@rules_clj//clojure:defs.bzl", "clj_library", "clj_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# The generated fixtures: real protoc-gen-clojure output, regenerated with
+# codec_ns=clj-protobuf.codec,runtime_ns=clj-protobuf.runtime. The .proto
+# sources they came from live under //test/proto. Regenerate with the plugin
+# whenever those change — these files are the contract, not hand-written code.
+clj_library(
+    name = "fixtures",
+    srcs = glob(["fixtures/**/*.clj"]),
+    namespaces = [
+        "fixtures.p2.kitchen",
+        "fixtures.p3.kitchen",
+        "fixtures.e2023.kitchen",
+        "fixtures.e2024.kitchen",
+        "fixtures.e2024legacy.legacy-style",
+        "fixtures.nested.nested",
+        "fixtures.bench.shapes",
+    ],
+    strip_prefix = "test/fixtures",
+    deps = [
+        "//src:clj_protobuf",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_library(
+    name = "contract_test_lib",
+    srcs = ["clj_protobuf/contract_test.clj"],
+    namespaces = ["clj-protobuf.contract-test"],
+    strip_prefix = "test",
+    deps = [
+        ":fixtures",
+        "//src:clj_protobuf",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_test(
+    name = "contract_test",
+    ns = "clj-protobuf.contract-test",
+    deps = [":contract_test_lib"],
+)

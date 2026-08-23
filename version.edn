@@ -1,0 +1,9 @@
+;; The single version source. build.clj reads it for the pom, the release
+;; workflow compares it against the tag, and //bazel/tools:version_consistency
+;; keeps the README install snippet in agreement on every bazel test //...
+;;
+;; 0.1.5 and not 0.1.0: protoc-gen-clojure's emitter already states runtime
+;; floors in generated-code comments — 0.1.3 for the 3-arg rt/message class
+;; hint, 0.1.5 for dotted nested-type lookup. The first published artifact
+;; satisfies both, so those comments point at a version that really exists.
+{:version "0.1.5"}
