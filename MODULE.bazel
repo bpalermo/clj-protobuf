@@ -9,15 +9,8 @@ module(
     version = "0.1.5",
 )
 
-# The ruleset. dev_dependency is irrelevant here (nothing consumes this module),
-# but the override matters: rules_clj is not in the BCR yet. DELETE THE OVERRIDE
-# once it is accepted there.
+# The ruleset, from the Bazel Central Registry.
 bazel_dep(name = "rules_clj", version = "0.1.0")
-git_override(
-    module_name = "rules_clj",
-    branch = "main",
-    remote = "https://github.com/bpalermo/rules_clj.git",
-)
 
 # Dependencies come from deps.edn, resolved once into the committed lockfile by
 # rules_clj's //tools/lock, fetched by digest at build time.
