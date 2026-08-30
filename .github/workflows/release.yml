@@ -77,19 +77,29 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: bazel-contrib/setup-bazel@0.19.0
         with:
-          distribution: temurin
-          java-version: "21"
-      - uses: DeLaGuardo/setup-clojure@13.4
-        with:
-          cli: latest
+          bazelisk-cache: true
+          disk-cache: release
+          repository-cache: true
+          cache-save: false
 
+      # The credentials are read by the publisher process, never by Bazel: they
+      # reach neither an action's environment nor its cache key, which is why
+      # this is a `bazel run` leaf rather than a build step.
       - name: deploy to Clojars
         env:
           CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
           CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
-        run: clojure -T:build deploy
+        run: bazel run //src:clojars.publish
+
+      # The rule's output is named for the target, not the artifact, so that the
+      # version stays out of analysis. A release asset should carry the name a
+      # human expects, so it is copied to one.
+      - name: name the jar for the release
+        env:
+          TAG: ${{ inputs.tag_name || github.ref_name }}
+        run: cp bazel-bin/src/clojars.jar "clj-protobuf-${TAG#v}.jar"
 
       - name: GitHub release
         env:
@@ -97,4 +107,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG" --generate-notes target/clj-protobuf-*.jar
+            --title "$TAG" --generate-notes clj-protobuf-*.jar

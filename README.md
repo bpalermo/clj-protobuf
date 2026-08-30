@@ -99,8 +99,9 @@ number describes 'protobuf vs JSON'.
 
 Bazel (with [rules_clj](https://github.com/bpalermo/rules_clj)) is the build
 and test harness: `bazel test //...`. Plain `clj` works too: `clojure -X:test`.
-The Clojars artifact is produced by `clojure -T:build jar` from the same
-`deps.edn` and `version.edn`.
+The Clojars artifact is `bazel build //src:clojars` — jar and pom, from the same
+`deps.edn` and `version.edn` everything else here reads. `bazel run
+//src:clojars.publish -- --dry-run` prints every upload it would make.
 
 ## License
 
