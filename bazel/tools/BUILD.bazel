@@ -2,8 +2,9 @@ load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 package(default_visibility = ["//visibility:public"])
 
-# Every declared or documented version must equal version.edn's. build.clj
-# reads version.edn directly, the release workflow compares it against the tag;
+# Every declared or documented version must equal version.edn's. //src:clojars
+# reads version.edn as an action input, the release workflow compares it against
+# the tag;
 # the README snippet is the one copy nothing else checks — which is exactly the
 # class of miss that shipped stale install docs in protoc-gen-clojure 0.3.1.
 sh_test(

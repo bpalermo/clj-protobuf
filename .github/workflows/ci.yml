@@ -43,6 +43,13 @@ jobs:
       - name: bazel test //...
         run: bazel test //...
 
+      # Not covered by the line above: `bazel test` builds test targets and what
+      # they need, and nothing needs the published artifact. Building it here is
+      # what makes a malformed pom a pull-request failure rather than something
+      # discovered while cutting a release.
+      - name: the Clojars artifact builds
+        run: bazel build //src:clojars
+
   # The path a Clojars consumer actually takes: plain clj, no Bazel. The
   # byte-identity suite needs Bazel-built protoc reference classes and is
   # excluded here by the :test alias's patterns; everything else runs.
@@ -63,9 +70,6 @@ jobs:
 
       - name: tests without Bazel
         run: clojure -X:test
-
-      - name: the Clojars artifact builds
-        run: clojure -T:build jar
 
   # The single check branch protection requires. A required status check is
   # matched by check-run name, which for a matrix is the generated one; bump a

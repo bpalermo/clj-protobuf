@@ -1,4 +1,4 @@
-;; The single version source. build.clj reads it for the pom, the release
+;; The single version source. //src:clojars reads it for the pom, the release
 ;; workflow compares it against the tag, and //bazel/tools:version_consistency
 ;; keeps the README install snippet in agreement on every bazel test //...
 ;;

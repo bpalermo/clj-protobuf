@@ -20,11 +20,6 @@
          :main-opts ["-m" "cognitect.test-runner"]
          :exec-fn cognitect.test-runner.api/test
          :exec-args {:patterns ["clj-protobuf\\.(contract|errors|reflection)-test"]}}
-  ;; clojure -T:build jar|install|deploy — the Clojars path. Deliberately the
-  ;; only place tools.build appears; Bazel owns build/test everywhere else.
-  :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.5"}
-                 slipset/deps-deploy {:mvn/version "0.2.2"}}
-          :ns-default build}
   ;; bazel run //bench:run resolves these hermetically through the lockfile;
   ;; the alias exists so `clj -M:bench` works for interactive profiling too.
   :bench {:extra-paths ["bench" "test/fixtures"]

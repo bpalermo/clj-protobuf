@@ -125,8 +125,8 @@ Gates, all riding `bazel test //...`: the contract and byte-identity suites,
 the error suite, the reflection gate, buildifier formatting, and a
 version-consistency test keeping the README install snippet equal to
 `version.edn` — the one version copy no other machine checks. CI adds a
-plain-`clj` leg (`clojure -X:test`, `clojure -T:build jar`) proving the
-non-Bazel consumer path; the release workflow refuses tags that are not on
+plain-`clj` leg (`clojure -X:test`) proving the non-Bazel consumer path, and
+builds `//src:clojars` to prove the publishable jar and pom still assemble; the release workflow refuses tags that are not on
 main or disagree with `version.edn` before anything can reach the Clojars
 token, which lives in a `release` environment that only `v*` tags may enter.
 

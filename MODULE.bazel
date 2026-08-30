@@ -2,15 +2,15 @@
 #
 # This module is the Bazel-side build of a library whose consumers arrive via
 # Clojars (com.github.bpalermo/clj-protobuf), not via a registry: nothing here
-# is published to BCR. Bazel is the primary build and test harness; build.clj
-# owns the jar/pom/deploy step and reads the same deps.edn.
+# is published to BCR. Bazel is the whole harness: build, test, and — since
+# rules_clj 0.2.0 — the jar, the pom and the Clojars upload (//src:clojars).
 module(
     name = "clj_protobuf",
     version = "0.1.5",
 )
 
 # The ruleset, from the Bazel Central Registry.
-bazel_dep(name = "rules_clj", version = "0.1.0")
+bazel_dep(name = "rules_clj", version = "0.2.0")
 
 # Dependencies come from deps.edn, resolved once into the committed lockfile by
 # rules_clj's //tools/lock, fetched by digest at build time.
