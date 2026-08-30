@@ -6,4 +6,4 @@
 ;; floors in generated-code comments — 0.1.3 for the 3-arg rt/message class
 ;; hint, 0.1.5 for dotted nested-type lookup. The first published artifact
 ;; satisfies both, so those comments point at a version that really exists.
-{:version "0.1.6"}
+{:version "0.1.7"}

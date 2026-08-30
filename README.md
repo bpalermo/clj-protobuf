@@ -8,7 +8,7 @@ in, protoc's bytes out. Editions supported through **2024**.
 
 ```clojure
 ;; deps.edn
-com.github.bpalermo/clj-protobuf {:mvn/version "0.1.6"}
+com.github.bpalermo/clj-protobuf {:mvn/version "0.1.7"}
 ```
 
 ## What it is
