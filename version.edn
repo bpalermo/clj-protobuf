@@ -2,14 +2,21 @@
 ;; workflow compares it against the tag, and //bazel/tools:version_consistency
 ;; keeps the README install snippet in agreement on every bazel test //...
 ;;
-;; 0.1.8 and not 0.1.7: 0.1.7's deploy failed part way through — the publisher of
-;; the day uploaded a .sha256, which Clojars answers with 400, after it had already
-;; accepted the jar. Nothing is visible at 0.1.7 in the repository or the API, but
-;; Clojars still refuses to redeploy it ("Non-SNAPSHOT redeploy"), so the number is
-;; spent and the next release takes the one after it.
+;; 0.1.9, because 0.1.7 and 0.1.8 are both spent. Neither exists on Clojars and
+;; neither can be redeployed ("Non-SNAPSHOT redeploy"), which is why the numbering
+;; jumps from 0.1.6:
+;;
+;;   0.1.7  the publisher uploaded a .sha256; Clojars answers that with 400, after
+;;          it had already accepted the jar. Fixed in rules_clj 0.2.1.
+;;   0.1.8  every file was accepted with a 201 and the version still never appeared:
+;;          Clojars treats the maven-metadata.xml upload as the signal that a deploy
+;;          is complete, and the publisher was not sending one. Fixed in rules_clj
+;;          0.2.2.
+;;
+;; Both were found by releasing, and neither could have been found by a dry run.
 ;;
 ;; 0.1.5 and not 0.1.0: protoc-gen-clojure's emitter already states runtime
 ;; floors in generated-code comments — 0.1.3 for the 3-arg rt/message class
 ;; hint, 0.1.5 for dotted nested-type lookup. The first published artifact
 ;; satisfies both, so those comments point at a version that really exists.
-{:version "0.1.8"}
+{:version "0.1.9"}
