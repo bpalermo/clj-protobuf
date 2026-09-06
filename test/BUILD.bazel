@@ -65,6 +65,26 @@ clj_library(
     ],
 )
 
+# The interop fixtures uncompiled, for the reflection gate below: require
+# :reload needs .clj sources to recompile under *warn-on-reflection*, and an
+# AOT jar's classes would be loaded as they are.
+clj_library(
+    name = "fixtures_interop_source",
+    srcs = glob(["fixtures/interop/**/*.clj"]),
+    aot = False,
+    namespaces = [
+        "interop.fixtures.e2024.kitchen",
+        "interop.fixtures.bench.shapes",
+    ],
+    strip_prefix = "test/fixtures",
+    deps = [
+        "//src:clj_protobuf",
+        "//test/proto:fixtures_java_proto",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
 clj_library(
     name = "contract_test_lib",
     srcs = ["clj_protobuf/contract_test.clj"],
@@ -167,6 +187,27 @@ clj_test(
     name = "errors_test",
     ns = "clj-protobuf.errors-test",
     deps = [":errors_test_lib"],
+)
+
+# interop=true output is direct typed calls by definition; a reflective one is
+# a plugin bug this repo is the only place equipped to catch (protoc's classes
+# and the runtime are both on this classpath, and neither is on the plugin's).
+clj_library(
+    name = "interop_reflection_test_lib",
+    srcs = ["clj_protobuf/interop_reflection_test.clj"],
+    namespaces = ["clj-protobuf.interop-reflection-test"],
+    strip_prefix = "test",
+    deps = [
+        ":fixtures_interop_source",
+        "//src:clj_protobuf",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_test(
+    name = "interop_reflection_test",
+    ns = "clj-protobuf.interop-reflection-test",
+    deps = [":interop_reflection_test_lib"],
 )
 
 # Depends on the SOURCE variant so require :reload-all has .clj files to

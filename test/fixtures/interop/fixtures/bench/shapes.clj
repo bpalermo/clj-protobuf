@@ -134,7 +134,7 @@
    (if (nil? opts)
      (let [b (com.acme.fixtures.bench.Deep/newBuilder)]
        (when-some [v (:id m)] (.setId b ^String v))
-       (when-some [v (:child m)] (if (map? v) (.setChild b (Level2->proto v nil)) (codec/set-field! b Deep--child v nil)))
+       (when-some [v (:child m)] (if (map? v) (.setChild b ^com.acme.fixtures.bench.Level2 (Level2->proto v nil)) (codec/set-field! b Deep--child v nil)))
        (.build b))
      (let [b (.newBuilderForType ^com.google.protobuf.Message Deep-prototype)]
        (codec/set-field! b Deep--id (:id m) opts)
@@ -161,7 +161,7 @@
    (if (nil? opts)
      (let [b (com.acme.fixtures.bench.Level2/newBuilder)]
        (when-some [v (:id m)] (.setId b ^String v))
-       (when-some [v (:child m)] (if (map? v) (.setChild b (Level3->proto v nil)) (codec/set-field! b Level2--child v nil)))
+       (when-some [v (:child m)] (if (map? v) (.setChild b ^com.acme.fixtures.bench.Level3 (Level3->proto v nil)) (codec/set-field! b Level2--child v nil)))
        (.build b))
      (let [b (.newBuilderForType ^com.google.protobuf.Message Level2-prototype)]
        (codec/set-field! b Level2--id (:id m) opts)
@@ -188,7 +188,7 @@
    (if (nil? opts)
      (let [b (com.acme.fixtures.bench.Level3/newBuilder)]
        (when-some [v (:id m)] (.setId b ^String v))
-       (when-some [v (:child m)] (if (map? v) (.setChild b (Level4->proto v nil)) (codec/set-field! b Level3--child v nil)))
+       (when-some [v (:child m)] (if (map? v) (.setChild b ^com.acme.fixtures.bench.Level4 (Level4->proto v nil)) (codec/set-field! b Level3--child v nil)))
        (.build b))
      (let [b (.newBuilderForType ^com.google.protobuf.Message Level3-prototype)]
        (codec/set-field! b Level3--id (:id m) opts)
