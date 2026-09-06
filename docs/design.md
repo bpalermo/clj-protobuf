@@ -145,9 +145,22 @@ compile in the consumer's process, so records specialize against the
 consumer's own dependency versions.
 
 Gates, all riding `bazel test //...`: the contract and byte-identity suites,
-the error suite, the reflection gate, buildifier formatting, and a
-version-consistency test keeping the README install snippet equal to
-`version.edn` — the one version copy no other machine checks. CI adds a
+the error suite, the reflection gate (over the library, and separately over
+the interop=true fixtures, whose whole premise is direct typed calls), a
+fixture drift test, buildifier formatting, and a version-consistency test
+keeping the README install snippet equal to `version.edn` — the one version
+copy no other machine checks.
+
+The fixtures under `test/fixtures` are vendored emitter output and stay
+vendored: the plain-clj leg reads them from disk, a pull request shows an
+emitter change as a diff, and old emissions are backward-compatibility
+coverage. What changed is how they are refreshed. `MODULE.bazel` pins
+protoc-gen-clojure from the Bazel Central Registry as a dev dependency,
+`//test/proto` generates every variant from it (standard, the unresolvable
+`bench_nohint` hints, and `interop=true`), `//test:update_fixtures_tests`
+fails when a vendored file differs from that output, and `bazel run
+//test:update_fixtures` rewrites them. Bumping the pin is the one step of a
+fixture refresh; the diff it produces is the review. CI adds a
 plain-`clj` leg (`clojure -X:test`) proving the non-Bazel consumer path, and
 builds `//src:clojars` to prove the publishable jar and pom still assemble; the release workflow refuses tags that are not on
 main or disagree with `version.edn` before anything can reach the Clojars

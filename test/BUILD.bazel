@@ -1,11 +1,36 @@
+load("@aspect_bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_clj//clojure:defs.bzl", "clj_library", "clj_test")
 
 package(default_visibility = ["//visibility:public"])
 
-# The generated fixtures: real protoc-gen-clojure output, regenerated with
-# codec_ns=clj-protobuf.codec,runtime_ns=clj-protobuf.runtime. The .proto
-# sources they came from live under //test/proto. Regenerate with the plugin
-# whenever those change — these files are the contract, not hand-written code.
+# The vendored fixtures under fixtures/ are the emitter's output for the protos
+# under //test/proto, byte for byte — the contract, not hand-written code.
+#
+#   bazel test //test:update_fixtures_tests  fail if they drift from the pinned
+#                                            protoc_gen_clojure's output
+#   bazel run  //test:update_fixtures        accept the drift, then review it
+#
+# Keyed on the paths //test/proto's generation targets declare, so a proto
+# added there without a vendored fixture fails at analysis, not silently.
+write_source_files(
+    name = "update_fixtures",
+    files = {
+        "fixtures/fixtures/bench/shapes.clj": "//test/proto:fixtures/bench/shapes.clj",
+        "fixtures/fixtures/bench_nohint/shapes.clj": "//test/proto:fixtures/bench_nohint/shapes.clj",
+        "fixtures/fixtures/e2023/kitchen.clj": "//test/proto:fixtures/e2023/kitchen.clj",
+        "fixtures/fixtures/e2024/kitchen.clj": "//test/proto:fixtures/e2024/kitchen.clj",
+        "fixtures/fixtures/e2024legacy/legacy_style.clj": "//test/proto:fixtures/e2024legacy/legacy_style.clj",
+        "fixtures/fixtures/nested/nested.clj": "//test/proto:fixtures/nested/nested.clj",
+        "fixtures/fixtures/p2/kitchen.clj": "//test/proto:fixtures/p2/kitchen.clj",
+        "fixtures/fixtures/p3/kitchen.clj": "//test/proto:fixtures/p3/kitchen.clj",
+        "fixtures/interop/fixtures/bench/shapes.clj": "//test/proto:interop/fixtures/bench/shapes.clj",
+        "fixtures/interop/fixtures/e2024/kitchen.clj": "//test/proto:interop/fixtures/e2024/kitchen.clj",
+    },
+)
+
+# The generated fixtures: real protoc-gen-clojure output (codec_ns and
+# runtime_ns at their clj-protobuf defaults), kept current by the drift test
+# above.
 clj_library(
     name = "fixtures",
     srcs = glob(
