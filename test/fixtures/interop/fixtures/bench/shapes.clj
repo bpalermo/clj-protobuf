@@ -8,7 +8,7 @@
             [clj-protobuf.runtime :as rt]))
 
 (def ^:private descriptor-b64
-  "ChtmaXh0dXJlcy9iZW5jaC9zaGFwZXMucHJvdG8SDmZpeHR1cmVzLmJlbmNoIswBCgRGbGF0Eg4KAmYxGAEgASgJUgJmMRIOCgJmMhgCIAEoCVICZjISDgoCZjMYAyABKAlSAmYzEg4KAmY0GAQgASgFUgJmNBIOCgJmNRgFIAEoBVICZjUSDgoCZjYYBiABKANSAmY2Eg4KAmY3GAcgASgDUgJmNxIOCgJmOBgIIAEoCFICZjgSDgoCZjkYCSABKAhSAmY5EhAKA2YxMBgKIAEoAVIDZjEwEhAKA2YxMRgLIAEoAVIDZjExEhAKA2YxMhgMIAEoCVIDZjEyIjQKBFRpbnkSDgoCaWQYASABKAlSAmlkEgwKAW4YAiABKAVSAW4SDgoCb2sYAyABKAhSAm9rIkQKBERlZXASDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWwyUgVjaGlsZCJGCgZMZXZlbDISDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWwzUgVjaGlsZCJGCgZMZXZlbDMSDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWw0UgVjaGlsZCIsCgZMZXZlbDQSDgoCaWQYASABKAlSAmlkEhIKBGxlYWYYAiABKAlSBGxlYWYiNAoMV2lkZVJlcGVhdGVkEg4KAmlkGAEgASgJUgJpZBIUCgVpdGVtcxgCIAMoCVIFaXRlbXMiTAoQUmVwZWF0ZWRNZXNzYWdlcxIOCgJpZBgBIAEoCVICaWQSKAoEcm93cxgCIAMoCzIULmZpeHR1cmVzLmJlbmNoLlRpbnlSBHJvd3MikwEKCE1hcEhlYXZ5Eg4KAmlkGAEgASgJUgJpZBI8CgZjb3VudHMYAiADKAsyJC5maXh0dXJlcy5iZW5jaC5NYXBIZWF2eS5Db3VudHNFbnRyeVIGY291bnRzGjkKC0NvdW50c0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5EhQKBXZhbHVlGAIgASgFUgV2YWx1ZToCOAFCGQoXY29tLmFjbWUuZml4dHVyZXMuYmVuY2hiCGVkaXRpb25zcOkH")
+  "ChtmaXh0dXJlcy9iZW5jaC9zaGFwZXMucHJvdG8SDmZpeHR1cmVzLmJlbmNoIswBCgRGbGF0Eg4KAmYxGAEgASgJUgJmMRIOCgJmMhgCIAEoCVICZjISDgoCZjMYAyABKAlSAmYzEg4KAmY0GAQgASgFUgJmNBIOCgJmNRgFIAEoBVICZjUSDgoCZjYYBiABKANSAmY2Eg4KAmY3GAcgASgDUgJmNxIOCgJmOBgIIAEoCFICZjgSDgoCZjkYCSABKAhSAmY5EhAKA2YxMBgKIAEoAVIDZjEwEhAKA2YxMRgLIAEoAVIDZjExEhAKA2YxMhgMIAEoCVIDZjEyIjQKBFRpbnkSDgoCaWQYASABKAlSAmlkEgwKAW4YAiABKAVSAW4SDgoCb2sYAyABKAhSAm9rIkQKBERlZXASDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWwyUgVjaGlsZCJGCgZMZXZlbDISDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWwzUgVjaGlsZCJGCgZMZXZlbDMSDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWw0UgVjaGlsZCIsCgZMZXZlbDQSDgoCaWQYASABKAlSAmlkEhIKBGxlYWYYAiABKAlSBGxlYWYiNAoMV2lkZVJlcGVhdGVkEg4KAmlkGAEgASgJUgJpZBIUCgVpdGVtcxgCIAMoCVIFaXRlbXMiTAoQUmVwZWF0ZWRNZXNzYWdlcxIOCgJpZBgBIAEoCVICaWQSKAoEcm93cxgCIAMoCzIULmZpeHR1cmVzLmJlbmNoLlRpbnlSBHJvd3MikwEKCE1hcEhlYXZ5Eg4KAmlkGAEgASgJUgJpZBI8CgZjb3VudHMYAiADKAsyJC5maXh0dXJlcy5iZW5jaC5NYXBIZWF2eS5Db3VudHNFbnRyeVIGY291bnRzGjkKC0NvdW50c0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5EhQKBXZhbHVlGAIgASgFUgV2YWx1ZToCOAEijQMKCUVudW1IZWF2eRIOCgJpZBgBIAEoCVICaWQSJgoCczEYAiABKA4yFi5maXh0dXJlcy5iZW5jaC5TdGF0dXNSAnMxEiYKAnMyGAMgASgOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgJzMhImCgJzMxgEIAEoDjIWLmZpeHR1cmVzLmJlbmNoLlN0YXR1c1ICczMSJgoCczQYBSABKA4yFi5maXh0dXJlcy5iZW5jaC5TdGF0dXNSAnM0EiYKAnM1GAYgASgOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgJzNRImCgJzNhgHIAEoDjIWLmZpeHR1cmVzLmJlbmNoLlN0YXR1c1ICczYSJgoCczcYCCABKA4yFi5maXh0dXJlcy5iZW5jaC5TdGF0dXNSAnM3EiYKAnM4GAkgASgOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgJzOBIwCgdoaXN0b3J5GAogAygOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgdoaXN0b3J5KlkKBlN0YXR1cxIWChJTVEFUVVNfVU5TUEVDSUZJRUQQABIRCg1TVEFUVVNfQUNUSVZFEAESEQoNU1RBVFVTX1BBVVNFRBACEhEKDVNUQVRVU19DTE9TRUQQA0IZChdjb20uYWNtZS5maXh0dXJlcy5iZW5jaGIIZWRpdGlvbnNw6Qc=")
 
 (def file-descriptor
   (rt/file-descriptor descriptor-b64
@@ -16,7 +16,7 @@
 
 ;; ---------------------------------------------------------------
 ;; messages
-(declare Flat->proto Tiny->proto Deep->proto Level2->proto Level3->proto Level4->proto WideRepeated->proto RepeatedMessages->proto MapHeavy->proto)
+(declare Flat->proto Tiny->proto Deep->proto Level2->proto Level3->proto Level4->proto WideRepeated->proto RepeatedMessages->proto MapHeavy->proto EnumHeavy->proto)
 ;;
 ;; The shape is known at codegen time, so the representation is too:
 ;; a defrecord per type, its FieldDescriptors resolved once into
@@ -309,4 +309,63 @@
    (->MapHeavy
     (codec/get-field msg MapHeavy--id opts)
     (codec/get-field msg MapHeavy--counts opts)
+    )))
+
+(defrecord EnumHeavy [id s1 s2 s3 s4 s5 s6 s7 s8 history])
+(def EnumHeavy-prototype (rt/message file-descriptor "EnumHeavy" "com.acme.fixtures.bench.EnumHeavy"))
+(def ^:private EnumHeavy--id (rt/field EnumHeavy-prototype "id"))
+(def ^:private EnumHeavy--s1 (rt/field EnumHeavy-prototype "s1"))
+(def ^:private EnumHeavy--s2 (rt/field EnumHeavy-prototype "s2"))
+(def ^:private EnumHeavy--s3 (rt/field EnumHeavy-prototype "s3"))
+(def ^:private EnumHeavy--s4 (rt/field EnumHeavy-prototype "s4"))
+(def ^:private EnumHeavy--s5 (rt/field EnumHeavy-prototype "s5"))
+(def ^:private EnumHeavy--s6 (rt/field EnumHeavy-prototype "s6"))
+(def ^:private EnumHeavy--s7 (rt/field EnumHeavy-prototype "s7"))
+(def ^:private EnumHeavy--s8 (rt/field EnumHeavy-prototype "s8"))
+(def ^:private EnumHeavy--history (rt/field EnumHeavy-prototype "history"))
+(defn EnumHeavy->proto
+  "Clojure -> protobuf. Takes the EnumHeavy record or any map
+  with the same keys — records and plain maps are interchangeable."
+  ([m] (EnumHeavy->proto m nil))
+  ([m opts]
+   (if (nil? opts)
+     (let [b (com.acme.fixtures.bench.EnumHeavy/newBuilder)]
+       (when-some [v (:id m)] (.setId b ^String v))
+       (codec/set-field! b EnumHeavy--s1 (:s1 m) nil)
+       (codec/set-field! b EnumHeavy--s2 (:s2 m) nil)
+       (codec/set-field! b EnumHeavy--s3 (:s3 m) nil)
+       (codec/set-field! b EnumHeavy--s4 (:s4 m) nil)
+       (codec/set-field! b EnumHeavy--s5 (:s5 m) nil)
+       (codec/set-field! b EnumHeavy--s6 (:s6 m) nil)
+       (codec/set-field! b EnumHeavy--s7 (:s7 m) nil)
+       (codec/set-field! b EnumHeavy--s8 (:s8 m) nil)
+       (codec/set-field! b EnumHeavy--history (:history m) nil)
+       (.build b))
+     (let [b (.newBuilderForType ^com.google.protobuf.Message EnumHeavy-prototype)]
+       (codec/set-field! b EnumHeavy--id (:id m) opts)
+       (codec/set-field! b EnumHeavy--s1 (:s1 m) opts)
+       (codec/set-field! b EnumHeavy--s2 (:s2 m) opts)
+       (codec/set-field! b EnumHeavy--s3 (:s3 m) opts)
+       (codec/set-field! b EnumHeavy--s4 (:s4 m) opts)
+       (codec/set-field! b EnumHeavy--s5 (:s5 m) opts)
+       (codec/set-field! b EnumHeavy--s6 (:s6 m) opts)
+       (codec/set-field! b EnumHeavy--s7 (:s7 m) opts)
+       (codec/set-field! b EnumHeavy--s8 (:s8 m) opts)
+       (codec/set-field! b EnumHeavy--history (:history m) opts)
+       (.build b)))))
+(defn proto->EnumHeavy
+  "protobuf -> a EnumHeavy record. Absent fields are nil."
+  ([msg] (proto->EnumHeavy msg nil))
+  ([^com.google.protobuf.Message msg opts]
+   (->EnumHeavy
+    (codec/get-field msg EnumHeavy--id opts)
+    (codec/get-field msg EnumHeavy--s1 opts)
+    (codec/get-field msg EnumHeavy--s2 opts)
+    (codec/get-field msg EnumHeavy--s3 opts)
+    (codec/get-field msg EnumHeavy--s4 opts)
+    (codec/get-field msg EnumHeavy--s5 opts)
+    (codec/get-field msg EnumHeavy--s6 opts)
+    (codec/get-field msg EnumHeavy--s7 opts)
+    (codec/get-field msg EnumHeavy--s8 opts)
+    (codec/get-field msg EnumHeavy--history opts)
     )))

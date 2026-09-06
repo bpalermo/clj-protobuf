@@ -73,16 +73,39 @@ because descriptors can be cyclic). Generated code stores handles in vars, so
 the descriptor API is walked once per field per namespace load, and the codec
 never touches it again.
 
-Hinted-arm handles for singular non-enum fields also carry typed-accessor
-invokers: LambdaMetafactory-generated functions over the generated class's
-`setX`/`getX`/`hasX`, built (and verified via `findVirtual`) at handle time,
-measured at direct-interop speed. The accessor name is derived by protoc's
-UnderscoresToCamelCase rule, and every failure — underivable name, protoc's
-conflict-mangled accessors, LambdaMetafactory being unavailable as it is
-under native-image — silently yields no invoker and the reflection path
-serves, same philosophy as the class hint: wrong is never incorrect, only
-unoptimized. Repeated and map fields instead batch into a single
-`setField`/`getField` (one accessor lookup per field); enums stay reflective. The whole library compiles reflection-free; a CI gate
+Hinted-arm handles also carry typed-accessor invokers:
+LambdaMetafactory-generated functions over the generated class's accessors,
+built (and verified via `findVirtual`) at handle time, measured at
+direct-interop speed. Singular scalars and messages use `setX`/`getX`/`hasX`.
+Repeated fields use `clearX` + `addAllX` and `getXList`; maps use `clearX` +
+`putAllX` and `getXMap` — clear first, because the bulk accessors append and
+merge where `setField` replaces, and `set-field!` replaces. Open enums (every
+proto3 and editions enum) use `setXValue(int)`/`getXValue()`, so an enum
+field costs what an int field costs; closed proto2 enums have no number
+accessors and stay reflective, as do repeated enums and enum-valued maps,
+whose bulk accessors take generated Java enum classes. The accessor name is
+derived by protoc's UnderscoresToCamelCase rule, and every failure —
+underivable name, protoc's conflict-mangled accessors, LambdaMetafactory
+being unavailable as it is under native-image — silently yields no invoker
+and the reflection path serves, same philosophy as the class hint: wrong is
+never incorrect, only unoptimized.
+
+Two more things are paid at def-time. Enum lookups in every direction are
+tables on the handle (`keyword → value`, `number → value`, `value →
+keyword`), because `EnumDescriptor.findValueByName` is a string
+concatenation plus a pool lookup per call. And a nested message's children
+are an array of handles walked by index; reading one back gathers the
+present fields into a single key/value array and builds the map in one step,
+which halved decode time on lists of small messages against the
+reduce/assoc shape.
+
+One ordering rule falls out of the map accessors: protobuf-java serializes
+map entries in insertion order, and both arms insert in the Clojure map's
+iteration order — the reflection arm through its entry list, the invoker arm
+through a `LinkedHashMap`. That is what keeps the two arms byte-identical on
+maps; a `HashMap` there changes the bytes.
+
+The whole library compiles reflection-free; a CI gate
 recompiles every namespace under `*warn-on-reflection*` and fails on a single
 warning, because one reflective call site on this path silently costs an
 order of magnitude.

@@ -8,7 +8,7 @@ in, protoc's bytes out. Editions supported through **2024**.
 
 ```clojure
 ;; deps.edn
-com.github.bpalermo/clj-protobuf {:mvn/version "0.1.10"}
+com.github.bpalermo/clj-protobuf {:mvn/version "0.1.11"}
 ```
 
 ## What it is
@@ -69,29 +69,33 @@ and `data.json` carry the same value as JSON:
 
 | shape | java | hinted | dynamic | jsonista | data.json |
 |---|---|---|---|---|---|
-| tiny | 69 ns / 96 B | 135 ns / 136 B | 406 ns / 448 B | 280 ns / 608 B | 884 ns / 624 B |
-| flat | 495 ns / 400 B | 860 ns / 488 B | 1.61 µs / 880 B | 1.12 µs / 1248 B | 3.37 µs / 2208 B |
-| deep | — | 1.10 µs / 744 B | 1.90 µs / 1712 B | 767 ns / 1080 B | 2.39 µs / 1392 B |
-| wide-repeated | — | 4.03 µs / 3184 B | 4.35 µs / 2688 B | 2.30 µs / 1096 B | 7.39 µs / 4216 B |
-| repeated-messages | 2.31 µs / 2360 B | 6.96 µs / 4560 B | 13.53 µs / 9816 B | 3.58 µs / 4024 B | 17.23 µs / 10424 B |
-| map-heavy | — | 11.06 µs / 13984 B | 25.12 µs / 25040 B | 3.72 µs / 3600 B | 12.44 µs / 10720 B |
+| tiny | 56 ns / 56 B | 141 ns / 136 B | 489 ns / 448 B | 257 ns / 480 B | 935 ns / 624 B |
+| flat | 545 ns / 400 B | 977 ns / 488 B | 1.94 µs / 880 B | 1.33 µs / 1248 B | 3.27 µs / 2208 B |
+| deep | — | 744 ns / 552 B | 1.90 µs / 1520 B | 770 ns / 1080 B | 2.37 µs / 1392 B |
+| wide-repeated | — | 4.12 µs / 3088 B | 4.08 µs / 2592 B | 2.64 µs / 1096 B | 8.04 µs / 4216 B |
+| repeated-messages | 2.76 µs / 2312 B | 5.30 µs / 2840 B | 13.13 µs / 8504 B | 4.16 µs / 4024 B | 17.25 µs / 10424 B |
+| map-heavy | — | 9.86 µs / 7512 B | 20.67 µs / 19000 B | 4.00 µs / 3616 B | 16.63 µs / 10720 B |
+| enum-heavy | — | 1.21 µs / 456 B | 2.54 µs / 832 B | 1.37 µs / 1168 B | 4.24 µs / 2952 B |
 
 ### Decode (bytes → Clojure data)
 
 | shape | java | hinted | dynamic | jsonista | data.json |
 |---|---|---|---|---|---|
-| tiny | 94 ns / 192 B | 239 ns / 232 B | 590 ns / 608 B | 678 ns / 1176 B | 591 ns / 1584 B |
-| flat | 346 ns / 432 B | 1.18 µs / 600 B | 1.95 µs / 1096 B | 2.07 µs / 2248 B | 3.27 µs / 5744 B |
-| deep | — | 1.54 µs / 1288 B | 2.79 µs / 2480 B | 1.42 µs / 2208 B | 1.45 µs / 3840 B |
-| wide-repeated | — | 3.53 µs / 4344 B | 6.90 µs / 4712 B | 3.79 µs / 4144 B | 3.06 µs / 11496 B |
-| repeated-messages | 2.07 µs / 3328 B | 12.00 µs / 8448 B | 18.25 µs / 15712 B | 11.75 µs / 10920 B | 12.01 µs / 24664 B |
-| map-heavy | — | 15.19 µs / 15432 B | 28.91 µs / 29160 B | 9.32 µs / 5816 B | 14.59 µs / 21376 B |
+| tiny | 139 ns / 192 B | 209 ns / 232 B | 660 ns / 608 B | 794 ns / 1136 B | 643 ns / 1584 B |
+| flat | 388 ns / 432 B | 923 ns / 600 B | 2.10 µs / 1096 B | 2.22 µs / 2168 B | 3.90 µs / 5776 B |
+| deep | — | 762 ns / 1024 B | 2.33 µs / 2216 B | 1.47 µs / 2088 B | 1.63 µs / 3840 B |
+| wide-repeated | — | 3.00 µs / 4296 B | 6.59 µs / 4664 B | 3.65 µs / 4104 B | 3.54 µs / 11496 B |
+| repeated-messages | 2.47 µs / 3328 B | 5.72 µs / 5360 B | 15.49 µs / 12624 B | 11.55 µs / 10080 B | 11.10 µs / 25096 B |
+| map-heavy | — | 13.03 µs / 13048 B | 30.23 µs / 29120 B | 11.09 µs / 5736 B | 18.89 µs / 22248 B |
+| enum-heavy | — | 2.58 µs / 1056 B | 3.48 µs / 1440 B | 2.79 µs / 2840 B | 2.91 µs / 7200 B |
 
 Read it honestly: the hinted arm sits ~2× off protoc's own generated code and
 ~3× ahead of DynamicMessage on small messages, beating JSON both ways there
 (typed-accessor invokers via LambdaMetafactory close most of the reflection
-gap; see docs/design.md); jackson wins on collection-heavy shapes, where
-per-entry message building dominates. Wire compactness and schema are protobuf's
+gap, and since 0.1.11 they cover repeated, map and open-enum fields too; see
+docs/design.md). Lists of messages now decode faster than JSON as well; jackson
+still wins encoding the collection-heavy shapes, where protobuf-java's own map
+and list building dominates. Wire compactness and schema are protobuf's
 argument regardless. The shapes are archetypes precisely because no single
 number describes 'protobuf vs JSON'.
 

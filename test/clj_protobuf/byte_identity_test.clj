@@ -115,3 +115,19 @@
                                                    (.build)))
                                 (.build)))]
       (is (java.util.Arrays/equals theirs ours)))))
+
+(deftest map-entry-order-survives-the-bulk-accessors
+  (testing "map entries serialize in insertion order, and the hinted arm feeds
+            protoc's putAllX from a LinkedHashMap in the Clojure map's own
+            iteration order — beyond eight entries, where that order is no
+            longer the literal's. Both arms and protoc must agree."
+    (let [counts (into {} (map (fn [i] [(str "k" i) i])) (range 40))
+          value  {:counts counts}
+          theirs (let [b (Kitchen/newBuilder)]
+                   (doseq [[k v] counts] (.putCounts b k (int v)))
+                   (pb/encode (.build b)))
+          hinted  (pb/encode (e2024/Kitchen->proto value))
+          dynamic (pb/encode (dynamic-kitchen->proto value))]
+      (is (java.util.Arrays/equals theirs hinted))
+      (is (java.util.Arrays/equals theirs dynamic))
+      (is (= counts (:counts (e2024/proto->Kitchen (pb/decode e2024/Kitchen-prototype hinted))))))))

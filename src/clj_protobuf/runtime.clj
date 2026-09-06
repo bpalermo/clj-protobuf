@@ -138,37 +138,84 @@
             ^Message nested-prototype ; message kind: the field's message default,
                                       ; concrete-class-correct for this lineage;
                                       ; for maps, the entry prototype
-            children      ; delay of [[kebab-kw FieldHandle] ...] (message kind)
+            children      ; delay of Object[] of child FieldHandles (message kind)
             kebab-key
             proto-key
             enum-kw       ; {EnumValueDescriptor -> keyword}, enum kind only
-            set-invoker   ; BiFunction over the typed setter, hinted arm only
-            get-invoker   ; Function over the typed getter, hinted arm only
-            has-invoker]) ; Function over hasX(), presence fields, hinted arm
+            enum-by-kw    ; {keyword -> EnumValueDescriptor}, enum kind only
+            enum-by-number ; {long -> EnumValueDescriptor}, enum kind only
+            set-invoker   ; BiFunction over the typed setter, hinted arm only:
+                          ; setX for singular, addAllX / putAllX for collections
+            get-invoker   ; Function over the typed getter, hinted arm only:
+                          ; getX, getXList, getXMap
+            has-invoker   ; Function over hasX(), presence fields, hinted arm
+            clear-invoker]) ; Function over clearX(), collections, hinted arm
 
 (def ^:private invoker-param-class
   {:int Integer/TYPE :long Long/TYPE :float Float/TYPE :double Double/TYPE
    :boolean Boolean/TYPE :string String
    :bytes com.google.protobuf.ByteString})
 
+(defn- collection-invokers
+  "Invokers for a repeated or map field: the bulk setter (addAllX / putAllX),
+  the bulk getter (getXList / getXMap) and clearX. The setter is only offered
+  together with clear, because the bulk accessors append and merge where the
+  reflection API's setField replaces; the codec clears first to keep that."
+  [^Class builder-class ^Class msg-class ^String suffix
+   ^String set-name ^Class set-param ^String get-name ^Class get-return]
+  (let [clear (invoke/getter-invoker builder-class (str "clear" suffix) builder-class)]
+    {:set   (when clear (invoke/setter-invoker builder-class set-name set-param))
+     :get   (invoke/getter-invoker msg-class get-name get-return)
+     :clear clear}))
+
 (defn- field-invokers
-  "Typed-accessor invokers for a singular non-enum field of a generated-class
-  prototype; {:set nil :get nil :has nil}-shaped, each independently nil when
-  underivable. DynamicMessage prototypes get none — the reflection API is
-  their only surface."
-  [^Message prototype ^Descriptors$FieldDescriptor fd kind ^Message nested-proto has-presence?]
+  "Typed-accessor invokers for a field of a generated-class prototype;
+  {:set :get :has :clear}-shaped, each independently nil when underivable.
+  DynamicMessage prototypes get none — the reflection API is their only
+  surface.
+
+  Singular scalars and messages: setX / getX / hasX. Enums: setXValue(int) /
+  getXValue(), which protoc emits for open enums only — closed (proto2) enums
+  find nothing and stay on the reflection path. Repeated: addAllX / getXList;
+  maps: putAllX / getXMap. Repeated enums and enum-valued maps take generated
+  Java enum classes through those accessors, so they keep the reflection path
+  too."
+  [^Message prototype ^Descriptors$FieldDescriptor fd kind ^Message nested-proto
+   has-presence? repeated? map-field ^clj_protobuf.runtime.FieldHandle val-handle]
   (if (instance? DynamicMessage prototype)
     {}
     (let [suffix        (invoke/accessor-suffix (.getName fd))
           builder-class (.getClass (.newBuilderForType prototype))
-          msg-class     (.getClass prototype)
-          value-class   (if (= kind :message)
-                          (.getClass nested-proto)
-                          (invoker-param-class kind))]
-      {:set (invoke/setter-invoker builder-class (str "set" suffix) value-class)
-       :get (invoke/getter-invoker msg-class (str "get" suffix) value-class)
-       :has (when has-presence?
-              (invoke/getter-invoker msg-class (str "has" suffix) Boolean/TYPE))})))
+          msg-class     (.getClass prototype)]
+      (cond
+        map-field
+        (if (= :enum (.-kind val-handle))
+          {}
+          (collection-invokers builder-class msg-class suffix
+                               (str "putAll" suffix) java.util.Map
+                               (str "get" suffix "Map") java.util.Map))
+
+        repeated?
+        (if (= kind :enum)
+          {}
+          (collection-invokers builder-class msg-class suffix
+                               (str "addAll" suffix) Iterable
+                               (str "get" suffix "List") java.util.List))
+
+        (= kind :enum)
+        {:set (invoke/setter-invoker builder-class (str "set" suffix "Value") Integer/TYPE)
+         :get (invoke/getter-invoker msg-class (str "get" suffix "Value") Integer/TYPE)
+         :has (when has-presence?
+                (invoke/getter-invoker msg-class (str "has" suffix) Boolean/TYPE))}
+
+        :else
+        (let [value-class (if (= kind :message)
+                            (.getClass nested-proto)
+                            (invoker-param-class kind))]
+          {:set (invoke/setter-invoker builder-class (str "set" suffix) value-class)
+           :get (invoke/getter-invoker msg-class (str "get" suffix) value-class)
+           :has (when has-presence?
+                  (invoke/getter-invoker msg-class (str "has" suffix) Boolean/TYPE))})))))
 
 (defn- kind-of [^Descriptors$FieldDescriptor fd]
   (condp = (.getJavaType fd)
@@ -202,28 +249,43 @@
                        (make-handle nested (.findFieldByName ed "value"))]))
         children  (when (and (= kind :message) (not map-field))
                     ;; Delayed: descriptors can be cyclic (a message containing
-                    ;; itself), and an eager walk would never terminate.
+                    ;; itself), and an eager walk would never terminate. An
+                    ;; array, because the codec walks it by index on every
+                    ;; nested message; each child carries its own keys.
                     (delay
-                      (mapv (fn [^Descriptors$FieldDescriptor cfd]
-                              [(naming/field-key (.getName cfd))
-                               (make-handle nested cfd)])
-                            (.getFields (.getDescriptorForType nested)))))]
-    (let [invokers (if (or repeated map-field (= kind :enum))
-                     {}
-                     (field-invokers prototype fd kind nested (.hasPresence fd)))]
+                      (object-array
+                       (mapv (fn [^Descriptors$FieldDescriptor cfd]
+                               (make-handle nested cfd))
+                             (.getFields (.getDescriptorForType nested))))))
+        enum-type (when (= kind :enum) (.getEnumType fd))]
+    (let [invokers (field-invokers prototype fd kind nested (.hasPresence fd)
+                                   repeated map-field vh)]
       (->FieldHandle fd kind repeated map-field (.hasPresence fd)
-                   (when (= kind :enum) (.getEnumType fd))
+                   enum-type
                    kh vh nested children
                    (naming/field-key (.getName fd))
                    (keyword (.getName fd))
                    ;; Interning a keyword per read is measurable on enum-heavy
-                   ;; messages; the value set is small and known now.
-                   (when (= kind :enum)
+                   ;; messages, and EnumDescriptor.findValueByName is a string
+                   ;; concatenation plus a pool lookup per write. The value set
+                   ;; is small and known now, so all three directions are tables.
+                   (when enum-type
                      (into {}
                            (map (fn [^Descriptors$EnumValueDescriptor v]
                                   [v (keyword (.getName v))]))
-                           (.getValues (.getEnumType fd))))
-                   (:set invokers) (:get invokers) (:has invokers)))))
+                           (.getValues enum-type)))
+                   (when enum-type
+                     (into {}
+                           (map (fn [^Descriptors$EnumValueDescriptor v]
+                                  [(keyword (.getName v)) v]))
+                           (.getValues enum-type)))
+                   (when enum-type
+                     (into {}
+                           (map (fn [^Descriptors$EnumValueDescriptor v]
+                                  [(long (.getNumber v)) v]))
+                           (.getValues enum-type)))
+                   (:set invokers) (:get invokers) (:has invokers)
+                   (:clear invokers)))))
 
 (defn field
   "A precomputed handle for one field of a message prototype, looked up by its
