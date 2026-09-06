@@ -1,5 +1,6 @@
 load("@protobuf//bazel:java_proto_library.bzl", "java_proto_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@protoc_gen_clojure//clojure:defs.bzl", "clojure_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -8,9 +9,15 @@ package(default_visibility = ["//visibility:public"])
 #
 # strip_import_prefix makes this directory the proto root, so imports resolve
 # as "fixtures/e2024/kitchen.proto", matching the paths in the files.
+#
+# bench_nohint is excluded on purpose: it exists so that its Java classes do
+# NOT exist. See the comment in that file and :fixtures_nohint_proto below.
 proto_library(
     name = "fixtures_proto",
-    srcs = glob(["**/*.proto"]),
+    srcs = glob(
+        ["**/*.proto"],
+        exclude = ["fixtures/bench_nohint/**"],
+    ),
     # e2024/kitchen.proto option-imports java_features.proto for
     # (pb.java).nest_in_file_class; Bazel models `import option` separately.
     option_deps = ["@protobuf//:java_features_proto"],
@@ -30,4 +37,67 @@ proto_library(
 java_proto_library(
     name = "fixtures_java_proto",
     deps = [":fixtures_proto"],
+)
+
+# The benchmark's DynamicMessage arm: the same shapes under hints that cannot
+# resolve. Its own proto_library, with no java_proto_library over it, ever.
+proto_library(
+    name = "fixtures_nohint_proto",
+    srcs = ["fixtures/bench_nohint/shapes.proto"],
+    strip_import_prefix = "/test/proto",
+)
+
+# The interop=true fixtures come from a subset: the plugin emits one file per
+# proto in the library, and the interop suite validates these two.
+proto_library(
+    name = "fixtures_interop_proto",
+    srcs = [
+        "fixtures/bench/shapes.proto",
+        "fixtures/e2024/kitchen.proto",
+    ],
+    option_deps = ["@protobuf//:java_features_proto"],
+    strip_import_prefix = "/test/proto",
+    deps = [
+        "@protobuf//:duration_proto",
+        "@protobuf//:timestamp_proto",
+        "@protobuf//:wrappers_proto",
+    ],
+)
+
+# What the pinned emitter produces today, one target per fixture variant. These
+# are not what the tests load — test/fixtures is — they are what
+# //test:update_fixtures_test compares test/fixtures against, and what
+# `bazel run //test:update_fixtures` copies in. The options are the contract
+# each variant was generated under; codec_ns and runtime_ns are the defaults.
+clojure_proto_library(
+    name = "generated",
+    outs = [
+        "fixtures/bench/shapes.clj",
+        "fixtures/e2023/kitchen.clj",
+        "fixtures/e2024/kitchen.clj",
+        "fixtures/e2024legacy/legacy_style.clj",
+        "fixtures/nested/nested.clj",
+        "fixtures/p2/kitchen.clj",
+        "fixtures/p3/kitchen.clj",
+    ],
+    proto = ":fixtures_proto",
+)
+
+clojure_proto_library(
+    name = "generated_nohint",
+    outs = ["fixtures/bench_nohint/shapes.clj"],
+    proto = ":fixtures_nohint_proto",
+)
+
+clojure_proto_library(
+    name = "generated_interop",
+    outs = [
+        "interop/fixtures/bench/shapes.clj",
+        "interop/fixtures/e2024/kitchen.clj",
+    ],
+    options = {
+        "interop": "true",
+        "ns_prefix": "interop",
+    },
+    proto = ":fixtures_interop_proto",
 )
