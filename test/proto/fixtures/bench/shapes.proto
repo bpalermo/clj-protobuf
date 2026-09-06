@@ -67,3 +67,25 @@ message MapHeavy {
   string id = 1;
   map<string, int32> counts = 2;
 }
+
+// Enum-dense. The other shapes never touch an enum, and enum coercion has its
+// own cost profile: name lookups on the way in, descriptor-to-keyword on the
+// way out. The repeated field stays on the reflection path by design.
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_ACTIVE = 1;
+  STATUS_PAUSED = 2;
+  STATUS_CLOSED = 3;
+}
+message EnumHeavy {
+  string id = 1;
+  Status s1 = 2;
+  Status s2 = 3;
+  Status s3 = 4;
+  Status s4 = 5;
+  Status s5 = 6;
+  Status s6 = 7;
+  Status s7 = 8;
+  Status s8 = 9;
+  repeated Status history = 10;
+}

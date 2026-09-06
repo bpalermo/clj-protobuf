@@ -44,7 +44,11 @@
    :wide-repeated {:id "w" :items (mapv #(str "item-" %) (range 50))}
    :repeated-messages {:id "r" :rows (mapv (fn [i] {:id (str "row-" i) :n i :ok (even? i)})
                                            (range 20))}
-   :map-heavy {:id "m" :counts (into {} (map (fn [i] [(str "k" i) i])) (range 50))}})
+   :map-heavy {:id "m" :counts (into {} (map (fn [i] [(str "k" i) i])) (range 50))}
+   :enum-heavy {:id "e"
+                :s1 :STATUS_ACTIVE :s2 :STATUS_PAUSED :s3 :STATUS_CLOSED :s4 :STATUS_ACTIVE
+                :s5 :STATUS_PAUSED :s6 :STATUS_CLOSED :s7 :STATUS_ACTIVE :s8 :STATUS_PAUSED
+                :history (vec (take 8 (cycle [:STATUS_ACTIVE :STATUS_PAUSED :STATUS_CLOSED])))}})
 
 (def shapes
   [{:shape :tiny              :to 'Tiny->proto              :proto 'Tiny-prototype              :from 'proto->Tiny}
@@ -52,7 +56,8 @@
    {:shape :deep              :to 'Deep->proto              :proto 'Deep-prototype              :from 'proto->Deep}
    {:shape :wide-repeated     :to 'WideRepeated->proto      :proto 'WideRepeated-prototype      :from 'proto->WideRepeated}
    {:shape :repeated-messages :to 'RepeatedMessages->proto  :proto 'RepeatedMessages-prototype  :from 'proto->RepeatedMessages}
-   {:shape :map-heavy         :to 'MapHeavy->proto          :proto 'MapHeavy-prototype          :from 'proto->MapHeavy}])
+   {:shape :map-heavy         :to 'MapHeavy->proto          :proto 'MapHeavy-prototype          :from 'proto->MapHeavy}
+   {:shape :enum-heavy        :to 'EnumHeavy->proto         :proto 'EnumHeavy-prototype         :from 'proto->EnumHeavy}])
 
 (defn- resolve-in [ns-sym sym] @(ns-resolve ns-sym sym))
 

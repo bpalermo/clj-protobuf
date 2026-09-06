@@ -13,7 +13,17 @@
             [fixtures.nested.nested :as nested]
             [fixtures.p2.kitchen]
             [fixtures.p3.kitchen :as p3]
-            [fixtures.bench.shapes]))
+            [fixtures.bench.shapes :as shapes]
+            [clj-protobuf.codec :as codec]
+            [clj-protobuf.runtime :as rt])
+  (:import [com.google.protobuf
+            DescriptorProtos$DescriptorProto
+            DescriptorProtos$FieldDescriptorProto
+            DescriptorProtos$FieldDescriptorProto$Label
+            DescriptorProtos$FieldDescriptorProto$Type
+            DescriptorProtos$FileDescriptorProto
+            Descriptors$FileDescriptor
+            Message]))
 
 (defn- normalize
   "Byte arrays compare by identity; replace them with seqs so records built
@@ -149,3 +159,41 @@
                 fixtures.e2024.kitchen fixtures.e2024legacy.legacy-style
                 fixtures.nested.nested fixtures.bench.shapes]]
     (is (some? (find-ns sym)) (str sym " loaded"))))
+
+(deftest nested-messages-with-many-fields
+  (testing "a nested message past the array-map threshold (8 fields) still
+            reads back as a plain map with every present field. No fixture
+            nests a wide message, so the wrapper is built here."
+    (let [shapes-fd shapes/file-descriptor
+          fdp (-> (DescriptorProtos$FileDescriptorProto/newBuilder)
+                  (.setName "wrapper.proto")
+                  (.setPackage "wrapper")
+                  (.addDependency (.getName shapes-fd))
+                  (.addMessageType
+                   (-> (DescriptorProtos$DescriptorProto/newBuilder)
+                       (.setName "Wrapper")
+                       (.addField (-> (DescriptorProtos$FieldDescriptorProto/newBuilder)
+                                      (.setName "inner")
+                                      (.setNumber 1)
+                                      (.setLabel DescriptorProtos$FieldDescriptorProto$Label/LABEL_OPTIONAL)
+                                      (.setType DescriptorProtos$FieldDescriptorProto$Type/TYPE_MESSAGE)
+                                      (.setTypeName ".fixtures.bench.Flat")))))
+                  (.build))
+          fd    (Descriptors$FileDescriptor/buildFrom
+                 fdp (into-array Descriptors$FileDescriptor [shapes-fd]))
+          proto (rt/message fd "Wrapper")
+          h     (rt/field proto "inner")
+          flat  {:f1 "a" :f2 "b" :f3 "c" :f4 4 :f5 5 :f6 6 :f7 7
+                 :f8 true :f9 false :f10 1.5 :f11 2.5 :f12 "l"}
+          msg   (-> (.newBuilderForType ^Message proto)
+                    (codec/set-field! h flat nil)
+                    (.build))
+          out   (codec/get-field (pb/decode proto (pb/encode msg)) h nil)]
+      (is (= 12 (count out)))
+      (is (= flat out))
+      (testing "and absent fields are simply missing from the map"
+        (let [few (codec/get-field (-> (.newBuilderForType ^Message proto)
+                                       (codec/set-field! h {:f1 "a" :f12 "z"} nil)
+                                       (.build))
+                                   h nil)]
+          (is (= {:f1 "a" :f12 "z"} few)))))))
