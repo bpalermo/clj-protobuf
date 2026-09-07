@@ -22,7 +22,7 @@
                       org.clojure/test.check {:mvn/version "1.1.1"}}
          :main-opts ["-m" "cognitect.test-runner"]
          :exec-fn cognitect.test-runner.api/test
-         :exec-args {:patterns ["clj-protobuf\\.(compile|contract|errors|reflection|wire)-test"]}}
+         :exec-args {:patterns ["clj-protobuf\\.(compile|contract|errors|message|reflection|wire)-test"]}}
   ;; bazel run //bench:run resolves these hermetically through the lockfile;
   ;; the alias exists so `clj -M:bench` works for interactive profiling too.
   :bench {:extra-paths ["bench" "test/fixtures"]
