@@ -264,6 +264,28 @@ clj_test(
     deps = [":compile_test_lib"],
 )
 
+# The compiled message against DynamicMessage: bytes, equality, hashing,
+# TextFormat, the reflective API both ways, merge semantics, every parser
+# overload, initialization, and grpc-java's marshaller call pattern.
+clj_library(
+    name = "message_test_lib",
+    srcs = ["clj_protobuf/message_test.clj"],
+    namespaces = ["clj-protobuf.message-test"],
+    strip_prefix = "test",
+    deps = [
+        ":fixtures",
+        "//src:clj_protobuf",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_test(
+    name = "message_test",
+    ns = "clj-protobuf.message-test",
+    deps = [":message_test_lib"],
+)
+
 # The equivalence harness: every arm of the runtime — hinted, DynamicMessage,
 # and the compiled codec once it exists — must produce protoc's bytes and read
 # the same values, over the wire corpus in //test/proto/fixtures/wire and over
