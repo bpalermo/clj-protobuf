@@ -108,6 +108,16 @@ and up to 2.5× on encode. Wire compactness and schema are protobuf's
 argument regardless. The shapes are archetypes precisely because no single
 number describes 'protobuf vs JSON'.
 
+## Dependencies
+
+`deps.edn` declares exactly two: Clojure and `protobuf-java`. This library
+does not declare `protobuf-java-util`; if you use `JsonFormat` or the other
+utilities, add it yourself **at the same version as `protobuf-java`** — a
+transitive `protobuf-java-util` from an older line (grpc-protobuf pulls a
+3.25.x one) next to a 4.x core works for the common paths but is not a
+supported pair, and aligning the two is the first thing to check when
+anything descriptor-related misbehaves.
+
 ## Building
 
 Bazel (with [rules_clj](https://github.com/bpalermo/rules_clj)) is the build
