@@ -1,0 +1,91 @@
+syntax = "proto2";
+
+package fixtures.wire.p2;
+
+option java_multiple_files = true;
+option java_package = "com.acme.fixtures.wire.p2";
+
+// The wire-format corpus, proto2 edition. The kitchen fixtures cover the
+// semantics generated code relies on; this file covers what a codec has to
+// get right on the wire and nothing else: every scalar wire type, proto2's
+// unpacked-by-default repeateds next to opted-in packed ones, closed enums,
+// groups, explicit defaults, required fields, message- and enum-valued maps,
+// and field numbers that need multi-byte tags. Field numbers are shared with
+// p3.proto where the two disagree on encoding, so bytes from one can be parsed
+// as the other.
+
+enum Closed {
+  CLOSED_UNSPECIFIED = 0;
+  CLOSED_A = 1;
+  CLOSED_B = 2;
+}
+
+message Leaf {
+  optional string id = 1;
+}
+
+message Wire {
+  // One of every scalar type: varint, zigzag varint, fixed32, fixed64,
+  // length-delimited.
+  optional int32 i32 = 1;
+  optional int64 i64 = 2;
+  optional uint32 u32 = 3;
+  optional uint64 u64 = 4;
+  optional sint32 s32 = 5;
+  optional sint64 s64 = 6;
+  optional fixed32 f32 = 7;
+  optional fixed64 f64 = 8;
+  optional sfixed32 sf32 = 9;
+  optional sfixed64 sf64 = 10;
+  optional float flt = 11;
+  optional double dbl = 12;
+  optional bool flag = 13;
+  optional string str = 14;
+  optional bytes raw = 15;
+  optional Closed color = 16;
+  optional Leaf leaf = 17;
+
+  // proto2 repeated scalars are unpacked unless they opt in. Field 18 is
+  // packed in p3.proto and 19 is unpacked there: a parser must accept either
+  // encoding for any repeated scalar, whatever the descriptor says it writes.
+  repeated int32 unpacked = 18;
+  repeated int32 packed = 19 [packed = true];
+  repeated sint64 packed_s64 = 20 [packed = true];
+  repeated double packed_dbl = 21 [packed = true];
+  repeated Closed colors = 22;
+  repeated Leaf leaves = 23;
+  repeated string names = 24;
+
+  map<int32, Leaf> by_id = 25;
+  map<string, Closed> by_color = 26;
+
+  oneof pick {
+    string pick_str = 27;
+    int64 pick_i64 = 28;
+    Leaf pick_leaf = 29;
+  }
+
+  // Explicit defaults: the reflective getField returns these for unset fields
+  // and they must never reach the wire.
+  optional int32 dflt_int = 30 [default = 42];
+  optional string dflt_str = 31 [default = "dflt"];
+  optional Closed dflt_enum = 32 [default = CLOSED_B];
+
+  // Groups: proto2's original delimited encoding, start and end tags.
+  optional group Grp = 33 {
+    optional string note = 1;
+  }
+  repeated group Grps = 34 {
+    optional int32 n = 1;
+  }
+
+  // Tags wider than one byte, and the largest field number protobuf allows:
+  // a dispatch table keyed by field number has to cope with both.
+  optional string high = 2047;
+  optional int32 huge = 536870911;
+}
+
+message Required {
+  required string id = 1;
+  optional int32 n = 2;
+}

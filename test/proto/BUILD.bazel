@@ -79,6 +79,9 @@ clojure_proto_library(
         "fixtures/nested/nested.clj",
         "fixtures/p2/kitchen.clj",
         "fixtures/p3/kitchen.clj",
+        "fixtures/wire/e2024.clj",
+        "fixtures/wire/p2.clj",
+        "fixtures/wire/p3.clj",
     ],
     proto = ":fixtures_proto",
 )

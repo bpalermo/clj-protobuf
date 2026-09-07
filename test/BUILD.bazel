@@ -23,6 +23,9 @@ write_source_files(
         "fixtures/fixtures/nested/nested.clj": "//test/proto:fixtures/nested/nested.clj",
         "fixtures/fixtures/p2/kitchen.clj": "//test/proto:fixtures/p2/kitchen.clj",
         "fixtures/fixtures/p3/kitchen.clj": "//test/proto:fixtures/p3/kitchen.clj",
+        "fixtures/fixtures/wire/e2024.clj": "//test/proto:fixtures/wire/e2024.clj",
+        "fixtures/fixtures/wire/p2.clj": "//test/proto:fixtures/wire/p2.clj",
+        "fixtures/fixtures/wire/p3.clj": "//test/proto:fixtures/wire/p3.clj",
         "fixtures/interop/fixtures/bench/shapes.clj": "//test/proto:interop/fixtures/bench/shapes.clj",
         "fixtures/interop/fixtures/e2024/kitchen.clj": "//test/proto:interop/fixtures/e2024/kitchen.clj",
     },
@@ -45,6 +48,9 @@ clj_library(
         "fixtures.e2024legacy.legacy-style",
         "fixtures.nested.nested",
         "fixtures.bench.shapes",
+        "fixtures.wire.p2",
+        "fixtures.wire.p3",
+        "fixtures.wire.e2024",
     ],
     strip_prefix = "test/fixtures",
     deps = [
@@ -212,6 +218,32 @@ clj_test(
     name = "errors_test",
     ns = "clj-protobuf.errors-test",
     deps = [":errors_test_lib"],
+)
+
+# The equivalence harness: every arm of the runtime — hinted, DynamicMessage,
+# and the compiled codec once it exists — must produce protoc's bytes and read
+# the same values, over the wire corpus in //test/proto/fixtures/wire and over
+# values drawn from the descriptors themselves. Needs the generated Java
+# classes: the hinted arm is the reference.
+clj_library(
+    name = "equivalence_test_lib",
+    srcs = ["clj_protobuf/equivalence_test.clj"],
+    namespaces = ["clj-protobuf.equivalence-test"],
+    strip_prefix = "test",
+    deps = [
+        ":fixtures",
+        "//src:clj_protobuf",
+        "//test/proto:fixtures_java_proto",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+        "@deps//:org_clojure_test_check",
+    ],
+)
+
+clj_test(
+    name = "equivalence_test",
+    ns = "clj-protobuf.equivalence-test",
+    deps = [":equivalence_test_lib"],
 )
 
 # interop=true output is direct typed calls by definition; a reflective one is

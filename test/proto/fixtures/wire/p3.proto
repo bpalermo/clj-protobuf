@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package fixtures.wire.p3;
+
+option java_multiple_files = true;
+option java_package = "com.acme.fixtures.wire.p3";
+
+// The wire-format corpus, proto3 edition: the same scalar set as p2.proto,
+// packed-by-default repeateds with one opted out, open enums, proto3
+// optional, and the same field numbers as p2.proto wherever the two encode
+// differently, so bytes from one parse as the other.
+
+enum Open {
+  OPEN_UNSPECIFIED = 0;
+  OPEN_A = 1;
+  OPEN_B = 2;
+}
+
+message Leaf {
+  string id = 1;
+}
+
+message Wire {
+  int32 i32 = 1;
+  int64 i64 = 2;
+  uint32 u32 = 3;
+  uint64 u64 = 4;
+  sint32 s32 = 5;
+  sint64 s64 = 6;
+  fixed32 f32 = 7;
+  fixed64 f64 = 8;
+  sfixed32 sf32 = 9;
+  sfixed64 sf64 = 10;
+  float flt = 11;
+  double dbl = 12;
+  bool flag = 13;
+  string str = 14;
+  bytes raw = 15;
+  Open color = 16;
+  Leaf leaf = 17;
+
+  // Packed by default here; unpacked in p2.proto under the same number, and
+  // the reverse for 19.
+  repeated int32 packed = 18;
+  repeated int32 unpacked = 19 [packed = false];
+  repeated sint64 packed_s64 = 20;
+  repeated double packed_dbl = 21;
+  // Enums pack too in proto3.
+  repeated Open colors = 22;
+  repeated Leaf leaves = 23;
+  repeated string names = 24;
+
+  map<int32, Leaf> by_id = 25;
+  map<string, Open> by_color = 26;
+
+  oneof pick {
+    string pick_str = 27;
+    int64 pick_i64 = 28;
+    Leaf pick_leaf = 29;
+  }
+
+  // Explicit presence on scalars that otherwise have none.
+  optional int32 opt_i32 = 30;
+  optional string opt_str = 31;
+
+  string high = 2047;
+  int32 huge = 536870911;
+}

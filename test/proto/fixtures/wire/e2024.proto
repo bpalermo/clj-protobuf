@@ -1,0 +1,42 @@
+edition = "2024";
+
+package fixtures.wire.e2024;
+
+option java_package = "com.acme.fixtures.wire.e2024";
+
+// The wire-format corpus, editions: every feature that changes bytes or
+// parse-time validation, set both ways side by side so a codec that resolves
+// features once per descriptor can be checked field by field. Strings are
+// unvalidated at file level with one field opting back in.
+option features.utf8_validation = NONE;
+
+enum Open {
+  OPEN_UNSPECIFIED = 0;
+  OPEN_A = 1;
+}
+
+// Closed enums need no zero value; unknown numbers go to unknown fields.
+enum Closed {
+  option features.enum_type = CLOSED;
+
+  CLOSED_A = 1;
+  CLOSED_B = 2;
+}
+
+message Leaf {
+  string id = 1;
+}
+
+message Wire {
+  string str = 1;
+  string checked = 2 [features.utf8_validation = VERIFY];
+  repeated int32 expanded = 3 [features.repeated_field_encoding = EXPANDED];
+  repeated int32 packed = 4;
+  Leaf delimited = 5 [features.message_encoding = DELIMITED];
+  Leaf length_prefixed = 6;
+  int32 implicit = 7 [features.field_presence = IMPLICIT];
+  int32 explicit = 8;
+  Open open = 9;
+  Closed closed = 10;
+  repeated Closed closed_list = 11;
+}

@@ -145,11 +145,16 @@ compile in the consumer's process, so records specialize against the
 consumer's own dependency versions.
 
 Gates, all riding `bazel test //...`: the contract and byte-identity suites,
-the error suite, the reflection gate (over the library, and separately over
-the interop=true fixtures, whose whole premise is direct typed calls), a
-fixture drift test, buildifier formatting, and a version-consistency test
-keeping the README install snippet equal to `version.edn` — the one version
-copy no other machine checks.
+the equivalence suite (every arm of the runtime — hinted, DynamicMessage, and
+any future codec — must produce protoc's bytes and read the same values, over
+a wire corpus covering every scalar wire type, packed and unpacked repeateds,
+closed and open enums, groups, explicit defaults, required fields, and the
+editions features that change bytes, plus values generated from the
+descriptors themselves), the error suite, the reflection gate (over the
+library, and separately over the interop=true fixtures, whose whole premise
+is direct typed calls), a fixture drift test, buildifier formatting, and a
+version-consistency test keeping the README install snippet equal to
+`version.edn` — the one version copy no other machine checks.
 
 The fixtures under `test/fixtures` are vendored emitter output and stay
 vendored: the plain-clj leg reads them from disk, a pull request shows an
