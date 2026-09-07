@@ -13,7 +13,9 @@
   API per call. Handles are built against a specific prototype, so a
   message-typed field's nested prototype has the right concrete class in both
   the DynamicMessage and generated-class arms."
-  (:require [clj-protobuf.impl.invoke :as invoke]
+  (:require [clj-protobuf.impl.compile :as compile]
+            [clj-protobuf.impl.invoke :as invoke]
+            [clj-protobuf.impl.message :as message]
             [clj-protobuf.impl.naming :as naming]
             [clojure.string :as str])
   (:import [com.google.protobuf
@@ -25,6 +27,7 @@
             Descriptors$FieldDescriptor$JavaType
             Descriptors$FileDescriptor
             DynamicMessage
+            GeneratedMessage
             Message
             Message$Builder]
            [java.util Base64]))
@@ -103,25 +106,53 @@
         inst))
     (catch Throwable _ nil)))
 
+;; The kill switch: -Dclj-protobuf.codec=dynamic keeps DynamicMessage as the
+;; non-generated prototype. A system property rather than a Var, because
+;; rt/message runs when a generated namespace loads — under AOT, or inside a
+;; native image — where binding a Var first is impractical, and because it
+;; makes an A/B a one-line environment change. Read once.
+(def ^:private compiled-codec?
+  (not= "dynamic" (System/getProperty "clj-protobuf.codec")))
+
+(defn- resolve-descriptor
+  ^Descriptors$Descriptor [^Descriptors$FileDescriptor fd ^String lookup]
+  (or (resolve-message-type fd lookup)
+      (throw (ex-info (str "no message type " lookup
+                           " in " (.getName fd))
+                      {:clj-protobuf/error :no-such-type
+                       :lookup lookup
+                       :file (.getName fd)}))))
+
+(defn dynamic-message
+  "A DynamicMessage prototype, whatever the codec setting: the reference
+  arm, for tests and comparisons."
+  ^Message [^Descriptors$FileDescriptor fd ^String lookup]
+  (DynamicMessage/getDefaultInstance (resolve-descriptor fd lookup)))
+
+(defn compiled-message
+  "A compiled-codec prototype, whatever the codec setting."
+  ^Message [^Descriptors$FileDescriptor fd ^String lookup]
+  (message/prototype (resolve-descriptor fd lookup)))
+
 (defn message
   "The prototype for a message type: a default instance whose
   `.newBuilderForType` the generated `->proto` fns drive.
 
   With a Java class hint (3-arity) the generated class's default instance is
-  used when it is present and describes the same message — measured ~45% faster
-  to encode and ~46% lighter on allocation than DynamicMessage for small
-  messages. Otherwise, and always in the 2-arity, a DynamicMessage prototype.
-  Same codec, same field descriptors, same bytes either way."
+  used when it is present and describes the same message — protoc's own
+  serializer, and the fastest arm. Otherwise, and always in the 2-arity, the
+  compiled codec's prototype: a Message over a slot array with the
+  descriptor compiled once into reader and writer tables. DynamicMessage
+  serves only for extendable types, which the compiled codec does not
+  support, or when -Dclj-protobuf.codec=dynamic asks for it. Same codec,
+  same field descriptors, same bytes on every arm."
   (^Message [fd lookup] (message fd lookup nil))
   (^Message [^Descriptors$FileDescriptor fd ^String lookup class-hint]
-   (let [descriptor (or (resolve-message-type fd lookup)
-                        (throw (ex-info (str "no message type " lookup
-                                             " in " (.getName fd))
-                                        {:clj-protobuf/error :no-such-type
-                                         :lookup lookup
-                                         :file (.getName fd)})))]
+   (let [descriptor (resolve-descriptor fd lookup)]
      (or (when class-hint (hinted-default-instance class-hint descriptor))
-         (DynamicMessage/getDefaultInstance descriptor)))))
+         (if (and compiled-codec? (not (.isExtendable descriptor)))
+           (message/prototype descriptor)
+           (DynamicMessage/getDefaultInstance descriptor))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Field handles
@@ -149,7 +180,11 @@
             get-invoker   ; Function over the typed getter, hinted arm only:
                           ; getX, getXList, getXMap
             has-invoker   ; Function over hasX(), presence fields, hinted arm
-            clear-invoker]) ; Function over clearX(), collections, hinted arm
+            clear-invoker ; Function over clearX(), collections, hinted arm
+            slot          ; compiled arm: the field's slot index, else nil
+            slot-default  ; compiled arm, fields without presence: the default
+                          ; in slot representation, read back when the slot is nil
+            enum-kw-by-number]) ; {long -> keyword}, enum kind only
 
 (def ^:private invoker-param-class
   {:int Integer/TYPE :long Long/TYPE :float Float/TYPE :double Double/TYPE
@@ -171,8 +206,8 @@
 (defn- field-invokers
   "Typed-accessor invokers for a field of a generated-class prototype;
   {:set :get :has :clear}-shaped, each independently nil when underivable.
-  DynamicMessage prototypes get none — the reflection API is their only
-  surface.
+  Only generated classes get any: compiled and DynamicMessage prototypes
+  have no typed accessors.
 
   Singular scalars and messages: setX / getX / hasX. Enums: setXValue(int) /
   getXValue(), which protoc emits for open enums only — closed (proto2) enums
@@ -182,7 +217,7 @@
   too."
   [^Message prototype ^Descriptors$FieldDescriptor fd kind ^Message nested-proto
    has-presence? repeated? map-field ^clj_protobuf.runtime.FieldHandle val-handle]
-  (if (instance? DynamicMessage prototype)
+  (if-not (instance? GeneratedMessage prototype)
     {}
     (let [suffix        (invoke/accessor-suffix (.getName fd))
           builder-class (.getClass (.newBuilderForType prototype))
@@ -235,14 +270,19 @@
   (let [kind      (kind-of fd)
         map-field (.isMapField fd)
         repeated  (and (.isRepeated fd) (not map-field))
-        ;; The nested prototype comes from the parent builder so it has the
-        ;; right concrete class: a generated parent yields the generated nested
-        ;; class, a DynamicMessage parent yields DynamicMessage. For maps this
-        ;; is the entry prototype.
+        compiled  (message/compiled-message? prototype)
+        ;; The nested prototype has the parent's concrete class: a generated
+        ;; parent yields the generated nested class through its builder, and
+        ;; a compiled parent yields the compiled nested type straight from
+        ;; the compiler — including for a map's entry type, so the entry's
+        ;; key and value handles, and through them a message-valued map's
+        ;; children, are compiled too. DynamicMessage yields DynamicMessage.
         nested    (when (= kind :message)
-                    (-> (.newBuilderForType prototype)
-                        (.newBuilderForField fd)
-                        (.getDefaultInstanceForType)))
+                    (if compiled
+                      (message/prototype (.getMessageType fd))
+                      (-> (.newBuilderForType prototype)
+                          (.newBuilderForField fd)
+                          (.getDefaultInstanceForType))))
         [kh vh]   (when map-field
                     (let [ed (.getMessageType fd)]
                       [(make-handle nested (.findFieldByName ed "key"))
@@ -285,7 +325,16 @@
                                   [(long (.getNumber v)) v]))
                            (.getValues enum-type)))
                    (:set invokers) (:get invokers) (:has invokers)
-                   (:clear invokers)))))
+                   (:clear invokers)
+                   (when compiled (long (.getIndex fd)))
+                   (when (and compiled (not repeated) (not map-field)
+                              (not= kind :message) (not (.hasPresence fd)))
+                     (compile/slot-default fd))
+                   (when enum-type
+                     (into {}
+                           (map (fn [^Descriptors$EnumValueDescriptor v]
+                                  [(long (.getNumber v)) (keyword (.getName v))]))
+                           (.getValues enum-type)))))))
 
 (defn field
   "A precomputed handle for one field of a message prototype, looked up by its
