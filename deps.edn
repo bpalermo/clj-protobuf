@@ -5,9 +5,12 @@
 {:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.5"}
         ;; The entire runtime surface: descriptors, DynamicMessage, builders,
-        ;; wire encoding. Edition 2024 needs the 4.x runtime; 4.35.x is what
-        ;; protoc-gen-clojure probes EDITION_2024 against.
-        com.google.protobuf/protobuf-java {:mvn/version "4.35.1"}}
+        ;; wire encoding. Edition 2024 needs the 4.x runtime. Bumped as its own
+        ;; change, measured alone, with the byte-identity and equivalence
+        ;; suites rerun on the new version first: the compiled codec decides
+        ;; edition features from this library's resolved descriptors. Keep the
+        ;; `protobuf` bazel_dep in MODULE.bazel on the same line.
+        com.google.protobuf/protobuf-java {:mvn/version "4.36.1"}}
  :aliases
  {;; clojure -X:test — the non-Bazel leg CI runs to prove the plain-clj
   ;; consumer path works. Bazel runs the same tests via clj_test targets.

@@ -41,10 +41,10 @@
       ]
     },
     {
-      "coordinates": "com.google.protobuf/protobuf-java:4.35.1",
+      "coordinates": "com.google.protobuf/protobuf-java:4.36.1",
       "target": "com_google_protobuf_protobuf_java",
-      "path": "com/google/protobuf/protobuf-java/4.35.1/protobuf-java-4.35.1.jar",
-      "sha256": "a4345ba2aa009912ff6f90467fea2d104605256b72c50840d75f13256638a472",
+      "path": "com/google/protobuf/protobuf-java/4.36.1/protobuf-java-4.36.1.jar",
+      "sha256": "26434a93561a1a44bf7157b2630fa73a5b4d8df20e94df167bc03fcd14abd7e4",
       "deps": []
     },
     {

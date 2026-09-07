@@ -33,4 +33,6 @@
 ;; a bare Descriptor — clj-grpc's marshallers — on DynamicMessage for inbound
 ;; parsing unless it re-derived the emitter's class-hint rule itself. Now one
 ;; call resolves the arm the generated namespace got.
-{:version "0.2.1"}
+;;
+;; 0.2.2: protobuf-java 4.36.1. No change of behaviour; the runtime line moves.
+{:version "0.2.2"}
