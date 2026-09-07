@@ -28,4 +28,9 @@
 ;; compiled codec's own Message implementation. Same bytes, same reflective
 ;; API, but a different concrete class — anything downstream that tested for
 ;; DynamicMessage notices, hence the minor bump.
-{:version "0.2.0"}
+;;
+;; 0.2.1: rt/prototype. 0.2.0 left a library that manufactures prototypes from
+;; a bare Descriptor — clj-grpc's marshallers — on DynamicMessage for inbound
+;; parsing unless it re-derived the emitter's class-hint rule itself. Now one
+;; call resolves the arm the generated namespace got.
+{:version "0.2.1"}
