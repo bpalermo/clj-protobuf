@@ -8,7 +8,7 @@ in, protoc's bytes out. Editions supported through **2024**.
 
 ```clojure
 ;; deps.edn
-com.github.bpalermo/clj-protobuf {:mvn/version "0.1.11"}
+com.github.bpalermo/clj-protobuf {:mvn/version "0.2.0"}
 ```
 
 ## What it is
@@ -56,46 +56,55 @@ Records and plain maps are interchangeable everywhere a message value goes.
 
 Generated code carries a Java-class hint per message. When the matching
 `java_proto_library` classes are on the classpath the prototypes silently
-switch from `DynamicMessage` to the generated classes, with byte-for-byte
-identical output (the byte-identity suite proves both arms against protoc's own
-Java backend).
+switch to the generated classes — protoc's own serializer. Without them,
+since 0.2.0, the prototype is this library's own compiled codec: the
+descriptor compiled once into reader and writer tables over a slot array,
+with none of `DynamicMessage`'s per-call reflection behind it. Every arm
+produces byte-for-byte identical output (the byte-identity and equivalence
+suites prove all of them against protoc's own Java backend), and
+`-Dclj-protobuf.codec=dynamic` brings `DynamicMessage` back if you ever need
+the reference implementation.
 
 Measured with `bazel run //bench:run -- quick` (criterium; JDK 21, Linux
 x86_64; mean latency / allocated bytes per op; full Clojure-data-to-bytes
-pipelines). `java` is protoc's generated builders driven directly; `jsonista`
-and `data.json` carry the same value as JSON:
+pipelines). `java` is protoc's generated builders driven directly; `hinted`
+is clj-protobuf with the generated classes on the classpath; `compiled` is
+clj-protobuf without them; `jsonista` and `data.json` carry the same value as
+JSON:
 
 ### Encode (Clojure data → bytes)
 
-| shape | java | hinted | dynamic | jsonista | data.json |
+| shape | java | hinted | compiled | jsonista | data.json |
 |---|---|---|---|---|---|
-| tiny | 56 ns / 56 B | 141 ns / 136 B | 489 ns / 448 B | 257 ns / 480 B | 935 ns / 624 B |
-| flat | 545 ns / 400 B | 977 ns / 488 B | 1.94 µs / 880 B | 1.33 µs / 1248 B | 3.27 µs / 2208 B |
-| deep | — | 744 ns / 552 B | 1.90 µs / 1520 B | 770 ns / 1080 B | 2.37 µs / 1392 B |
-| wide-repeated | — | 4.12 µs / 3088 B | 4.08 µs / 2592 B | 2.64 µs / 1096 B | 8.04 µs / 4216 B |
-| repeated-messages | 2.76 µs / 2312 B | 5.30 µs / 2840 B | 13.13 µs / 8504 B | 4.16 µs / 4024 B | 17.25 µs / 10424 B |
-| map-heavy | — | 9.86 µs / 7512 B | 20.67 µs / 19000 B | 4.00 µs / 3616 B | 16.63 µs / 10720 B |
-| enum-heavy | — | 1.21 µs / 456 B | 2.54 µs / 832 B | 1.37 µs / 1168 B | 4.24 µs / 2952 B |
+| tiny | 86 ns / 96 B | 168 ns / 136 B | 311 ns / 224 B | 390 ns / 608 B | 1.03 µs / 624 B |
+| flat | 682 ns / 312 B | 1.18 µs / 488 B | 1.36 µs / 504 B | 1.57 µs / 1248 B | 4.01 µs / 2208 B |
+| deep | — | 907 ns / 552 B | 1.27 µs / 656 B | 1.14 µs / 1080 B | 2.83 µs / 1392 B |
+| wide-repeated | — | 4.26 µs / 3088 B | 3.77 µs / 2112 B | 2.63 µs / 1096 B | 8.65 µs / 4216 B |
+| repeated-messages | 2.25 µs / 2296 B | 6.42 µs / 2824 B | 7.13 µs / 3664 B | 4.16 µs / 4024 B | 24.40 µs / 10424 B |
+| map-heavy | — | 10.61 µs / 7512 B | 8.48 µs / 4760 B | 4.46 µs / 3600 B | 16.60 µs / 10720 B |
+| enum-heavy | — | 1.44 µs / 456 B | 1.36 µs / 392 B | 1.61 µs / 1168 B | 5.44 µs / 2952 B |
 
 ### Decode (bytes → Clojure data)
 
-| shape | java | hinted | dynamic | jsonista | data.json |
+| shape | java | hinted | compiled | jsonista | data.json |
 |---|---|---|---|---|---|
-| tiny | 139 ns / 192 B | 209 ns / 232 B | 660 ns / 608 B | 794 ns / 1136 B | 643 ns / 1584 B |
-| flat | 388 ns / 432 B | 923 ns / 600 B | 2.10 µs / 1096 B | 2.22 µs / 2168 B | 3.90 µs / 5776 B |
-| deep | — | 762 ns / 1024 B | 2.33 µs / 2216 B | 1.47 µs / 2088 B | 1.63 µs / 3840 B |
-| wide-repeated | — | 3.00 µs / 4296 B | 6.59 µs / 4664 B | 3.65 µs / 4104 B | 3.54 µs / 11496 B |
-| repeated-messages | 2.47 µs / 3328 B | 5.72 µs / 5360 B | 15.49 µs / 12624 B | 11.55 µs / 10080 B | 11.10 µs / 25096 B |
-| map-heavy | — | 13.03 µs / 13048 B | 30.23 µs / 29120 B | 11.09 µs / 5736 B | 18.89 µs / 22248 B |
-| enum-heavy | — | 2.58 µs / 1056 B | 3.48 µs / 1440 B | 2.79 µs / 2840 B | 2.91 µs / 7200 B |
+| tiny | 97 ns / 192 B | 217 ns / 232 B | 242 ns / 216 B | 769 ns / 1136 B | 761 ns / 1584 B |
+| flat | 407 ns / 432 B | 910 ns / 600 B | 638 ns / 520 B | 2.10 µs / 2168 B | 4.86 µs / 5776 B |
+| deep | — | 918 ns / 1024 B | 744 ns / 760 B | 1.32 µs / 2088 B | 1.19 µs / 3840 B |
+| wide-repeated | — | 3.87 µs / 4352 B | 3.88 µs / 4208 B | 3.33 µs / 4104 B | 5.73 µs / 11496 B |
+| repeated-messages | 2.04 µs / 3312 B | 6.10 µs / 5344 B | 6.18 µs / 4704 B | 11.60 µs / 10080 B | 10.45 µs / 25096 B |
+| map-heavy | — | 13.73 µs / 13048 B | 11.52 µs / 10032 B | 10.11 µs / 5736 B | 15.18 µs / 22248 B |
+| enum-heavy | — | 1.99 µs / 1056 B | 1.87 µs / 856 B | 2.22 µs / 2840 B | 2.69 µs / 7200 B |
 
-Read it honestly: the hinted arm sits ~2× off protoc's own generated code and
-~3× ahead of DynamicMessage on small messages, beating JSON both ways there
-(typed-accessor invokers via LambdaMetafactory close most of the reflection
-gap, and since 0.1.11 they cover repeated, map and open-enum fields too; see
-docs/design.md). Lists of messages now decode faster than JSON as well; jackson
-still wins encoding the collection-heavy shapes, where protobuf-java's own map
-and list building dominates. Wire compactness and schema are protobuf's
+Read it honestly: the hinted arm sits ~2× off protoc's own generated code on
+small messages and the compiled arm within ~1.3× of the hinted one — and on
+decode the compiled arm is the faster of the two on most shapes, a slot read
+beating a typed-accessor call. Both beat JSON both ways on small and nested
+messages, and lists of messages decode faster than JSON too; jackson still
+wins encoding the collection-heavy shapes, where protobuf-java's own map and
+list building dominates. Before 0.2.0 the arm without generated classes was
+`DynamicMessage`, two to three times slower than the compiled one on decode
+and up to 2.5× on encode. Wire compactness and schema are protobuf's
 argument regardless. The shapes are archetypes precisely because no single
 number describes 'protobuf vs JSON'.
 
