@@ -16,6 +16,7 @@
       (require 'clj-protobuf.impl.naming
                'clj-protobuf.impl.invoke
                'clj-protobuf.impl.wire
+               'clj-protobuf.impl.compile
                'clj-protobuf.runtime
                'clj-protobuf.codec
                'clj-protobuf.core

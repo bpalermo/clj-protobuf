@@ -379,6 +379,13 @@
                                                              (unchecked-add-int (CodedOutputStream/computeUInt32SizeNoTag entry) entry)))))
               acc)))))))
 
+(defn- resolve-default
+  "A default may be lazy (an IDeref): a message-valued map's default is the
+  value type's default instance, which may not exist when the reader is
+  built. Descriptors are cyclic."
+  [d]
+  (if (instance? IDeref d) (.deref ^IDeref d) d))
+
 (defn- map-reader
   "Reads one entry into the map. key-tag and val-tag are the tags the entry's
   key and value carry (numbers 1 and 2 with their wire types); anything else
@@ -392,10 +399,14 @@
         (let [^LinkedHashMap m (or current (LinkedHashMap.))
               len (.readRawVarint32 in)
               limit (.pushLimit in len)]
-          (loop [k key-default x val-default]
+          (loop [k nil x nil]
             (let [tag (.readTag in)]
               (cond
-                (zero? tag) (do (.popLimit in limit) (.put m k x) m)
+                (zero? tag) (do (.popLimit in limit)
+                                (.put m
+                                      (if (nil? k) (resolve-default key-default) k)
+                                      (if (nil? x) (resolve-default val-default) x))
+                                m)
                 (= tag key-tag) (recur (.read key-reader in nil unknown) x)
                 (= tag val-tag) (recur k (.read val-reader in x unknown))
                 :else (do (.skipField in tag) (recur k x))))))))))
@@ -504,7 +515,8 @@
 (defn map-reader*
   "A reader for a map field. val-opts are the value's scalar-reader opts,
   or {:parser IDeref} for message values. Defaults fill a missing key or
-  value: key-default and val-default in slot representation."
+  value: key-default and val-default in slot representation, either of
+  which may be an IDeref resolved on first use."
   ^FieldReader [^String key-type key-opts key-default
                 ^String val-type val-opts val-default]
   (map-reader (tag 1 (wire-type key-type))
