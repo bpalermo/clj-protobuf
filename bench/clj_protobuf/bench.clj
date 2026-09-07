@@ -11,8 +11,11 @@
     :hinted   generated code + clj-protobuf, Java-class hints resolving
               (fixtures.bench.shapes with //test/proto:fixtures_java_proto on
               the classpath)
-    :dynamic  the same generated code with hints that cannot resolve
-              (fixtures.bench-nohint.shapes) — the pure DynamicMessage arm
+    :compiled the same generated code with hints that cannot resolve
+              (fixtures.bench-nohint.shapes) — the compiled codec, what any
+              consumer without the generated classes gets. Run with
+              -Dclj-protobuf.codec=dynamic (JAVA_TOOL_OPTIONS works under
+              bazel run) and this column measures DynamicMessage instead.
     :java     protoc's generated Java builders driven directly — the floor
     :jsonista JSON via jackson (the fast JSON arm)
     :data-json JSON via org.clojure/data.json (the pure-Clojure JSON arm)
@@ -131,7 +134,7 @@
         hinted-to  (resolve-in 'fixtures.bench.shapes to)
         dynamic-to (resolve-in 'fixtures.bench-nohint.shapes to)]
     (cond-> {:hinted    #(pb/encode ^Message (hinted-to value))
-             :dynamic   #(pb/encode ^Message (dynamic-to value))
+             :compiled  #(pb/encode ^Message (dynamic-to value))
              :jsonista  #(j/write-value-as-bytes value mapper)
              :data-json #(data-json/write-str value)}
       (java-encoders shape)
@@ -147,7 +150,7 @@
         dynamic-proto (resolve-in 'fixtures.bench-nohint.shapes proto)
         dynamic-from  (resolve-in 'fixtures.bench-nohint.shapes from)]
     (cond-> {:hinted    #(hinted-from (pb/decode hinted-proto bytes))
-             :dynamic   #(dynamic-from (pb/decode dynamic-proto bytes))
+             :compiled  #(dynamic-from (pb/decode dynamic-proto bytes))
              :jsonista  #(j/read-value ^bytes json-bytes mapper)
              :data-json #(data-json/read-str json-str :key-fn keyword)}
       (java-parsers shape)
@@ -156,7 +159,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Report
 
-(def arm-order [:java :hinted :dynamic :jsonista :data-json])
+(def arm-order [:java :hinted :compiled :jsonista :data-json])
 
 (defn- fmt-ns [ns] (cond (nil? ns) "—"
                          (< ns 1000) (format "%.0f ns" ns)
@@ -187,7 +190,7 @@
 (defn -main [& args]
   (when (some #{"quick"} args) (reset! quick? true))
   (println "clj-protobuf representation benchmark")
-  (println "arms: java = protoc's generated builders; hinted/dynamic = clj-protobuf;")
+  (println "arms: java = protoc's generated builders; hinted/compiled = clj-protobuf;")
   (println "      jsonista/data.json = the same value as JSON. mean latency / allocated bytes per op.")
   (let [encode (run-op "encode" encode-arms)
         decode (run-op "decode" decode-arms)]

@@ -331,4 +331,9 @@
 (deftest the-runtime-prototype-is-shared-per-descriptor
   (is (identical? (.getParserForType (compiled wp3/Wire-prototype))
                   (.getParserForType (compiled wp3/Wire-prototype))))
-  (is (instance? Message (rt/message wp3/file-descriptor "Wire")) "the runtime still hands out DynamicMessage until phase 5"))
+  (testing "rt/message hands out the compiled arm without a usable class hint"
+    (let [proto (rt/message wp3/file-descriptor "Wire")]
+      (is (message/compiled-message? proto))
+      (is (identical? (.getParserForType proto) (.getParserForType (compiled wp3/Wire-prototype))))))
+  (testing "and DynamicMessage on request, for reference"
+    (is (instance? DynamicMessage (rt/dynamic-message wp3/file-descriptor "Wire")))))

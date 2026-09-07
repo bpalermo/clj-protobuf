@@ -103,7 +103,7 @@
   ;; protobuf-java reports editions DELIMITED as GROUP once features resolve.
   (= Descriptors$FieldDescriptor$Type/GROUP (.getType fd)))
 
-(defn- slot-default
+(defn slot-default
   "A scalar field's default in slot representation: protobuf-java's default
   value, except enums, which are numbers here."
   [^Descriptors$FieldDescriptor fd]

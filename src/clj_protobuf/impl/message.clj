@@ -720,3 +720,37 @@
   compiled arm."
   ^Message [^Descriptors$Descriptor d]
   (default-instance (compile d)))
+
+;; ---------------------------------------------------------------------------
+;; The codec's entry points: slot access without the reflective API. The
+;; codec has already coerced the value to slot representation.
+
+(defn compiled-message? [x] (instance? CompiledMessage x))
+(defn compiled-builder? [x] (instance? CompiledBuilder x))
+
+(defn message-slot
+  "The raw slot value of a compiled message: nil when absent (or, without
+  presence, default)."
+  [^CompiledMessage m ^long slot]
+  (aget ^objects (.-slots m) slot))
+
+(defn set-slot!
+  "Store a slot-representation value on a compiled builder: a default on a
+  field without presence is stored as nil, and a oneof member clears its
+  siblings — the same rules setField applies."
+  [^CompiledBuilder b ^long slot v]
+  (let [^CompiledType t (.-type b)
+        ^objects slots (.-slots b)
+        ^CompiledField f (aget ^objects (.-fields t) slot)]
+    (aset slots slot
+          (if (and (not (.-has-presence? f))
+                   (some? (.-default f))
+                   (.equals ^Object (.-default f) v))
+            nil
+            v))
+    (when (>= (.-oneof f) 0)
+      (let [^ints siblings (aget ^objects (.-oneof-slots t) (.-oneof f))]
+        (dotimes [i (alength siblings)]
+          (let [s (aget siblings i)]
+            (when (not= s slot) (aset slots s nil))))))
+    nil))

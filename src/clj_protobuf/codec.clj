@@ -26,7 +26,8 @@
     :bytes   :byte-array (default) | :byte-string"
   ;; The :require is load-bearing even though only the class is used: importing
   ;; a record class requires the namespace that defines it to have been loaded.
-  (:require [clj-protobuf.runtime])
+  (:require [clj-protobuf.impl.message :as message]
+            [clj-protobuf.runtime])
   (:import [clj_protobuf.runtime FieldHandle]
            [clojure.lang PersistentArrayMap]
            [com.google.protobuf
@@ -66,7 +67,7 @@
           :else nil)
         (type-mismatch h v (str "a value of enum " (.getFullName et))))))
 
-(declare set-field!)
+(declare set-field! proto-value)
 
 (defn- map->message
   "Build a nested message from a record or plain map through the child handles."
@@ -89,9 +90,12 @@
       (instance? Message v)
       (let [^Message mv v]
         (cond
-          ;; Right concrete class already — the common case when a caller used
-          ;; the nested type's own ->proto.
-          (identical? (class mv) (class nested)) mv
+          ;; Right concrete class and type already — the common case when a
+          ;; caller used the nested type's own ->proto. The class alone does
+          ;; not say: every compiled (or dynamic) message shares one.
+          (and (identical? (class mv) (class nested))
+               (identical? (.getDescriptorForType mv) (.getDescriptorForType nested)))
+          mv
           ;; Same message type, different concrete class (DynamicMessage into a
           ;; generated builder, or vice versa): rebuild field-by-field. Costs a
           ;; copy, preserves the bytes.
@@ -102,6 +106,15 @@
 
       (map? v) (map->message h v opts)
       :else (type-mismatch h v "a record, map, or Message"))))
+
+(defn- slot-value
+  "Coerce one Clojure value to the compiled codec's slot representation:
+  proto-value's, except enums, which are numbers there."
+  [^FieldHandle h v opts]
+  (let [x (proto-value h v opts)]
+    (if (identical? :enum (.-kind h))
+      (Integer/valueOf (.getNumber ^Descriptors$EnumValueDescriptor x))
+      x)))
 
 (defn- proto-value
   "Coerce one Clojure value to what protobuf-java's reflection API expects."
@@ -137,12 +150,23 @@
   (let [fd ^Descriptors$FieldDescriptor (.-fd h)
         ^FieldHandle kh (.-key-handle h)
         ^FieldHandle vh (.-val-handle h)]
-    (if-let [inv (.-set-invoker h)]
+    (cond
+      ;; compiled arm: the slot IS a LinkedHashMap in slot representation
+      (and (message/compiled-builder? b) (.-slot h))
       (let [out (LinkedHashMap. (int (count m)))]
+        (reduce-kv (fn [_ k v] (.put out (slot-value kh k opts) (slot-value vh v opts)))
+                   nil m)
+        (message/set-slot! b (.-slot h) out))
+
+      (.-set-invoker h)
+      (let [inv (.-set-invoker h)
+            out (LinkedHashMap. (int (count m)))]
         (reduce-kv (fn [_ k v] (.put out (proto-value kh k opts) (proto-value vh v opts)))
                    nil m)
         (.apply ^Function (.-clear-invoker h) b)
         (.apply ^BiFunction inv b out))
+
+      :else
       (let [^Message entry-proto (.-nested-prototype h)
             out (java.util.ArrayList. (count m))]
         (reduce-kv (fn [_ k v]
@@ -156,11 +180,19 @@
 (defn- set-repeated! [^Message$Builder b ^FieldHandle h vs opts]
   (when-not (sequential? vs) (type-mismatch h vs "a sequential collection"))
   (let [out (java.util.ArrayList. (count vs))]
-    (reduce (fn [_ v] (.add out (proto-value h v opts))) nil vs)
-    (if-let [inv (.-set-invoker h)]
-      (do (.apply ^Function (.-clear-invoker h) b)
-          (.apply ^BiFunction inv b out))
-      (.setField b ^Descriptors$FieldDescriptor (.-fd h) out))))
+    (cond
+      (and (message/compiled-builder? b) (.-slot h))
+      (do (reduce (fn [_ v] (.add out (slot-value h v opts))) nil vs)
+          (message/set-slot! b (.-slot h) out))
+
+      (.-set-invoker h)
+      (do (reduce (fn [_ v] (.add out (proto-value h v opts))) nil vs)
+          (.apply ^Function (.-clear-invoker h) b)
+          (.apply ^BiFunction (.-set-invoker h) b out))
+
+      :else
+      (do (reduce (fn [_ v] (.add out (proto-value h v opts))) nil vs)
+          (.setField b ^Descriptors$FieldDescriptor (.-fd h) out)))))
 
 (defn set-field!
   "Set one field on a builder from a Clojure value. nil sets nothing — that is
@@ -173,6 +205,12 @@
        (cond
          (.-map? handle)      (set-map! b handle v opts)
          (.-repeated? handle) (set-repeated! b handle v opts)
+         ;; compiled arm: coerce and store the slot. A handle from another
+         ;; arm has no slot and takes the reflective path, which the
+         ;; compiled builder also speaks.
+         (and (message/compiled-builder? b) (.-slot handle))
+         (message/set-slot! b (.-slot handle) (slot-value handle v opts))
+
          :else
          (let [v' (proto-value handle v opts)]
            ;; The invoker replaces ONLY the accessor call: same converted
@@ -189,6 +227,13 @@
    builder))
 
 (declare get-field)
+
+(defn- enum-of-number
+  "An enum number — from a getXValue invoker or a compiled slot — to its
+  descriptor, which for an open enum may name no declared value."
+  ^Descriptors$EnumValueDescriptor [^FieldHandle h ^long n]
+  (or (get (.-enum-by-number h) n)
+      (.findValueByNumberCreatingIfUnknown ^Descriptors$EnumDescriptor (.-enum-type h) (int n))))
 
 (defn- message->map
   "A parsed nested message as a plain map. Only present fields appear; the
@@ -230,21 +275,23 @@
     :bytes   (if (= :byte-string (:bytes opts))
                v
                (.toByteArray ^ByteString v))
-    :enum    (case (:enums opts :keyword)
-               :keyword (or (get (.-enum-kw h) v)
-                            ;; open-enum unknowns are created on the fly and
-                            ;; cannot be in the table
-                            (keyword (.getName ^Descriptors$EnumValueDescriptor v)))
-               :number  (.getNumber ^Descriptors$EnumValueDescriptor v)
-               :string  (.getName ^Descriptors$EnumValueDescriptor v))
+    ;; An enum arrives as an EnumValueDescriptor from the reflection API or
+    ;; as its number from a compiled slot or a getXValue invoker.
+    :enum    (if (instance? Descriptors$EnumValueDescriptor v)
+               (case (:enums opts :keyword)
+                 :keyword (or (get (.-enum-kw h) v)
+                              ;; open-enum unknowns are created on the fly and
+                              ;; cannot be in the table
+                              (keyword (.getName ^Descriptors$EnumValueDescriptor v)))
+                 :number  (.getNumber ^Descriptors$EnumValueDescriptor v)
+                 :string  (.getName ^Descriptors$EnumValueDescriptor v))
+               (let [n (long v)]
+                 (case (:enums opts :keyword)
+                   :keyword (or (get (.-enum-kw-by-number h) n)
+                                (keyword (.getName ^Descriptors$EnumValueDescriptor (enum-of-number h n))))
+                   :number  n
+                   :string  (.getName ^Descriptors$EnumValueDescriptor (enum-of-number h n)))))
     :message (message->map h v opts)))
-
-(defn- enum-of-number
-  "An enum getter invoker is getXValue(): the number, which for an open enum
-  may name no declared value."
-  ^Descriptors$EnumValueDescriptor [^FieldHandle h ^Integer n]
-  (or (get (.-enum-by-number h) (long n))
-      (.findValueByNumberCreatingIfUnknown ^Descriptors$EnumDescriptor (.-enum-type h) (int n))))
 
 (defn get-field
   "Read one field from a message as a Clojure value. nil means absent: an unset
@@ -254,15 +301,18 @@
   ([msg handle] (get-field msg handle nil))
   ([msg ^FieldHandle handle opts]
    (let [^Message m msg
-         fd ^Descriptors$FieldDescriptor (.-fd handle)]
+         fd ^Descriptors$FieldDescriptor (.-fd handle)
+         compiled (and (message/compiled-message? m) (some? (.-slot handle)))]
      (cond
        (.-map? handle)
        (let [^FieldHandle kh (.-key-handle handle)
              ^FieldHandle vh (.-val-handle handle)]
-         (if-let [g (.-get-invoker handle)]
-           ;; getXMap: the builder's own map, no entry messages materialized.
-           (let [^java.util.Map jm (.apply ^Function g m)]
-             (when (pos? (.size jm))
+         (if (or compiled (.-get-invoker handle))
+           ;; the slot's own map, or getXMap: no entry messages materialized
+           (let [^java.util.Map jm (if compiled
+                                     (message/message-slot m (.-slot handle))
+                                     (.apply ^Function (.-get-invoker handle) m))]
+             (when (and jm (pos? (.size jm)))
                (let [it (.iterator (.entrySet jm))]
                  (loop [acc (transient {})]
                    (if (.hasNext it)
@@ -282,10 +332,11 @@
                         entries))))))
 
        (.-repeated? handle)
-       (let [^java.util.List vs (if-let [g (.-get-invoker handle)]
-                                  (.apply ^Function g m)
-                                  (.getField m fd))]
-         (when (pos? (.size vs))
+       (let [^java.util.List vs (cond
+                                  compiled (message/message-slot m (.-slot handle))
+                                  (.-get-invoker handle) (.apply ^Function (.-get-invoker handle) m)
+                                  :else (.getField m fd))]
+         (when (and vs (pos? (.size vs)))
            (case (.-kind handle)
              ;; Scalars come back as they are: no per-element conversion.
              (:int :long :float :double :boolean :string) (vec vs)
@@ -293,6 +344,15 @@
               (reduce (fn [acc v] (conj! acc (clj-value handle v opts)))
                       (transient [])
                       vs)))))
+
+       compiled
+       ;; nil is absent — or, without presence, the default, read back
+       (let [v (message/message-slot m (.-slot handle))]
+         (if (nil? v)
+           (when-not (.-has-presence? handle)
+             (when-some [d (.-slot-default handle)]
+               (clj-value handle d opts)))
+           (clj-value handle v opts)))
 
        :else
        (let [absent? (and (.-has-presence? handle)
@@ -302,9 +362,6 @@
          (when-not absent?
            (clj-value handle
                       (if-let [g (.-get-invoker handle)]
-                        (let [raw (.apply ^Function g m)]
-                          (if (identical? :enum (.-kind handle))
-                            (enum-of-number handle raw)
-                            raw))
+                        (.apply ^Function g m)
                         (.getField m fd))
                       opts)))))))

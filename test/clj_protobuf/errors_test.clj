@@ -67,6 +67,9 @@
     (let [via-bogus  (rt/message e2024/file-descriptor "Kitchen" "no.such.Class")
           via-wrong  (rt/message e2024/file-descriptor "Kitchen" "java.lang.String")
           plain      (rt/message e2024/file-descriptor "Kitchen")]
-      (is (instance? com.google.protobuf.DynamicMessage via-bogus))
-      (is (instance? com.google.protobuf.DynamicMessage via-wrong))
-      (is (instance? com.google.protobuf.DynamicMessage plain)))))
+      ;; a failed hint lands on the same arm the hint-free 2-arity uses — the
+      ;; compiled codec — never on a generated class
+      (is (not (instance? com.google.protobuf.GeneratedMessage via-bogus)))
+      (is (not (instance? com.google.protobuf.GeneratedMessage via-wrong)))
+      (is (identical? (class plain) (class via-bogus)))
+      (is (identical? (class plain) (class via-wrong))))))

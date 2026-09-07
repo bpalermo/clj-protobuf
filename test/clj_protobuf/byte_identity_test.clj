@@ -73,13 +73,10 @@
        (pb/encode (java-reference))
        (pb/encode (e2024/Kitchen->proto kitchen-value)))))
 
-(defn- dynamic-kitchen->proto
-  "The same conversion the generated ->proto does, but against a 2-arity
-  (hint-free) prototype: the pure DynamicMessage arm, independent of what is
-  on the classpath."
-  ^Message [m]
-  (let [proto (rt/message e2024/file-descriptor "Kitchen")
-        b     (.newBuilderForType ^Message proto)]
+(defn- convert-with
+  "The same conversion the generated ->proto does, against any prototype."
+  ^Message [^Message proto m]
+  (let [b (.newBuilderForType proto)]
     (doseq [fname ["str_field" "int_field" "bool_field" "bytes_field"
                    "dbl_field" "long_field" "enum_field" "msg_field" "tags"
                    "children" "counts" "choice_str" "choice_int" "choice_msg"
@@ -88,10 +85,26 @@
         (codec/set-field! b h (get m (:kebab-key h)) nil)))
     (.build b)))
 
+(defn- dynamic-kitchen->proto
+  "The pure DynamicMessage arm, independent of what is on the classpath."
+  ^Message [m]
+  (convert-with (rt/dynamic-message e2024/file-descriptor "Kitchen") m))
+
+(defn- compiled-kitchen->proto
+  "The compiled arm: what a hint-free rt/message returns."
+  ^Message [m]
+  (convert-with (rt/message e2024/file-descriptor "Kitchen") m))
+
 (deftest dynamic-arm-matches-protoc
   (is (java.util.Arrays/equals
        (pb/encode (java-reference))
        (pb/encode (dynamic-kitchen->proto kitchen-value)))))
+
+(deftest compiled-arm-matches-protoc
+  (is (not (instance? DynamicMessage (rt/message e2024/file-descriptor "Kitchen"))))
+  (is (java.util.Arrays/equals
+       (pb/encode (java-reference))
+       (pb/encode (compiled-kitchen->proto kitchen-value)))))
 
 (deftest arms-agree-after-parsing
   (testing "bytes parse and re-encode identically through either arm. The two
@@ -100,10 +113,11 @@
             mixing pools is invalid, by protobuf-java's own rules — but the
             wire bytes are the meeting point and must agree."
     (let [bytes (pb/encode (e2024/Kitchen->proto kitchen-value))
-          via-hinted  (pb/decode e2024/Kitchen-prototype bytes)
-          via-dynamic (pb/decode (rt/message e2024/file-descriptor "Kitchen") bytes)]
-      (is (java.util.Arrays/equals (pb/encode via-hinted)
-                                   (pb/encode via-dynamic))))))
+          via-hinted   (pb/decode e2024/Kitchen-prototype bytes)
+          via-dynamic  (pb/decode (rt/dynamic-message e2024/file-descriptor "Kitchen") bytes)
+          via-compiled (pb/decode (rt/message e2024/file-descriptor "Kitchen") bytes)]
+      (is (java.util.Arrays/equals (pb/encode via-hinted) (pb/encode via-dynamic)))
+      (is (java.util.Arrays/equals (pb/encode via-hinted) (pb/encode via-compiled))))))
 
 (deftest delimited-wire-format
   (testing "editions DELIMITED really is group encoding on the wire — protoc's
