@@ -243,6 +243,27 @@ clj_test(
     deps = [":wire_test_lib"],
 )
 
+# The codec compiler: its tables, checked on the wire fixtures, and its parse
+# and write loops against DynamicMessage on the same bytes. Plain-clj too.
+clj_library(
+    name = "compile_test_lib",
+    srcs = ["clj_protobuf/compile_test.clj"],
+    namespaces = ["clj-protobuf.compile-test"],
+    strip_prefix = "test",
+    deps = [
+        ":fixtures",
+        "//src:clj_protobuf",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_test(
+    name = "compile_test",
+    ns = "clj-protobuf.compile-test",
+    deps = [":compile_test_lib"],
+)
+
 # The equivalence harness: every arm of the runtime — hinted, DynamicMessage,
 # and the compiled codec once it exists — must produce protoc's bytes and read
 # the same values, over the wire corpus in //test/proto/fixtures/wire and over
