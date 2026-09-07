@@ -19,6 +19,10 @@
             [clj-protobuf.impl.naming :as naming]
             [clojure.string :as str])
   (:import [com.google.protobuf
+            ByteString
+            DescriptorProtos$DescriptorProto
+            DescriptorProtos$Edition
+            DescriptorProtos$FeatureSet
             DescriptorProtos$FileDescriptorProto
             Descriptors$Descriptor
             Descriptors$EnumDescriptor
@@ -29,7 +33,8 @@
             DynamicMessage
             GeneratedMessage
             Message
-            Message$Builder]
+            Message$Builder
+            UnknownFieldSet]
            [java.util Base64]))
 
 (set! *warn-on-reflection* true)
@@ -134,6 +139,158 @@
   ^Message [^Descriptors$FileDescriptor fd ^String lookup]
   (message/prototype (resolve-descriptor fd lookup)))
 
+(defn- prototype-for
+  "The arm for a descriptor, given a class hint that may be nil: the
+  generated class when the hint resolves and describes this message, else
+  the compiled codec, else DynamicMessage for extendable types or under
+  -Dclj-protobuf.codec=dynamic."
+  ^Message [^Descriptors$Descriptor descriptor class-hint]
+  (or (when class-hint (hinted-default-instance class-hint descriptor))
+      (if (and compiled-codec? (not (.isExtendable descriptor)))
+        (message/prototype descriptor)
+        (DynamicMessage/getDefaultInstance descriptor))))
+
+;; ---------------------------------------------------------------------------
+;; The Java class hint, derived from a descriptor by the emitter's own rule.
+;;
+;; A byte-for-byte port of protoc-gen-clojure's `java-class-name`, so that
+;; `prototype` below hands a consumer holding only a Descriptor — a gRPC
+;; marshaller, say — the same arm the generated namespace got for the same
+;; message. The rule, and its deliberate limits:
+;;
+;;   java_multiple_files = true          -> <pkg>.<Message>
+;;   edition 2024 or later               -> <pkg>.<Message> (nest_in_file_class
+;;                                          defaults to NO)
+;;   nest_in_file_class = YES, 2024+     -> <pkg>.<FileClass>$<Message>
+;;   anything else                       -> nil: the pre-2024 outer-class rules
+;;                                          (camel-cased basename plus a
+;;                                          collision suffix) are not reproduced
+;;
+;; Nested messages join with `$`. nest_in_file_class is read off the UNKNOWN
+;; fields of the FeatureSet, as the emitter reads it: the embedded descriptor
+;; is parsed without an extension registry, so that is where the (pb.java)
+;; extension lives, and reading it there needs no JavaFeaturesProto class.
+;; The numbers are fixed by protobuf's wire compatibility. A hint is only ever
+;; a hint: `hinted-default-instance` verifies the class describes the message.
+
+(def ^:private edition-2024-number
+  (.getNumber DescriptorProtos$Edition/EDITION_2024))
+
+(defn- edition-2024+? [^DescriptorProtos$FileDescriptorProto fdp]
+  (and (= "editions" (.getSyntax fdp))
+       (>= (.getNumber (.getEdition fdp)) edition-2024-number)))
+
+(defn- top-level-java-class? [^DescriptorProtos$FileDescriptorProto fdp]
+  (or (.getJavaMultipleFiles (.getOptions fdp))
+      (edition-2024+? fdp)))
+
+(def ^:private pb-java-extension-field 1001)   ; FeatureSet extension (pb.java)
+(def ^:private nest-in-file-class-field 5)      ; JavaFeatures.nest_in_file_class
+(def ^:private nest-in-file-class-values {2 :yes, 1 :no})
+
+(defn- explicit-nest-in-file-class
+  "`:yes`, `:no`, or nil when `features` does not set (pb.java).nest_in_file_class.
+
+  Read two ways, because this runs in the consumer's JVM: while the embedded
+  descriptor is parsed without a registry, protobuf-java registers the
+  (pb.java) extension as soon as any generated Java class has loaded, and
+  from then on the feature is a KNOWN extension field of the FeatureSet with
+  empty unknown fields. The known path goes through the reflective API — the
+  extension's field number and the JavaFeatures message's field name — so no
+  JavaFeaturesProto class is ever referenced."
+  [^DescriptorProtos$FeatureSet features]
+  (or (some (fn [[^Descriptors$FieldDescriptor fd v]]
+              (when (and (.isExtension fd) (= pb-java-extension-field (.getNumber fd))
+                         (instance? Message v))
+                (let [^Message jf v
+                      f (.findFieldByName (.getDescriptorForType jf) "nest_in_file_class")]
+                  (when (and f (.hasField jf f))
+                    (nest-in-file-class-values
+                     (.getNumber ^Descriptors$EnumValueDescriptor (.getField jf f)))))))
+            (.getAllFields features))
+      (some (fn [^ByteString bs]
+              (some nest-in-file-class-values
+                    (-> (UnknownFieldSet/parseFrom bs)
+                        (.getField nest-in-file-class-field)
+                        (.getVarintList))))
+            (-> (.getUnknownFields features)
+                (.getField pb-java-extension-field)
+                (.getLengthDelimitedList)))))
+
+(defn- nest-in-file-class?
+  [^DescriptorProtos$FileDescriptorProto fdp ^DescriptorProtos$DescriptorProto md]
+  (= :yes
+     (or (explicit-nest-in-file-class (.getFeatures (.getOptions md)))
+         (explicit-nest-in-file-class (.getFeatures (.getOptions fdp))))))
+
+(defn- file-class-name
+  "Edition 2024 and later only: java_outer_classname when set, else the
+  camel-cased basename plus \"Proto\"."
+  [^DescriptorProtos$FileDescriptorProto fdp]
+  (let [opts (.getOptions fdp)]
+    (if (.hasJavaOuterClassname opts)
+      (.getJavaOuterClassname opts)
+      (let [base (-> (.getName fdp)
+                     (str/replace #"^.*/" "")
+                     (str/replace #"\.proto$" ""))]
+        (str (->> (str/split base #"[_-]")
+                  (remove str/blank?)
+                  (map str/capitalize)
+                  (str/join))
+             "Proto")))))
+
+(defn- name-path
+  "The proto names from the file root down: Outer.Inner is [\"Outer\" \"Inner\"]."
+  [^Descriptors$Descriptor d]
+  (loop [d d, segs ()]
+    (if d
+      (recur (.getContainingType d) (cons (.getName d) segs))
+      segs)))
+
+(defn java-class-hint
+  "The Java class protoc generates for this message, by the emitter's rule —
+  the hint a generated namespace passes to `message` for it — or nil when the
+  rule declines to guess. Only ever a hint: `prototype` verifies it."
+  [^Descriptors$Descriptor d]
+  (let [fdp (.toProto (.getFile d))
+        md (.toProto d)
+        opts (.getOptions fdp)
+        pkg (if (.hasJavaPackage opts) (.getJavaPackage opts) (.getPackage fdp))
+        path (name-path d)]
+    (when (seq pkg)
+      (cond
+        (and (edition-2024+? fdp) (nest-in-file-class? fdp md))
+        (str pkg "." (file-class-name fdp) "$" (str/join "$" path))
+
+        (top-level-java-class? fdp)
+        (str pkg "." (str/join "$" path))))))
+
+(defn prototype
+  "The prototype for a message type from its Descriptor, or from any Message
+  of that type — the same arm `message` hands the generated namespace: the
+  generated class when it is on the classpath (its name derived by the
+  emitter's own rule), else the compiled codec, else DynamicMessage for
+  extendable types or under -Dclj-protobuf.codec=dynamic.
+
+  For code that manufactures prototypes for types it did not generate —
+  gRPC marshallers, say — and must land on the arm the generated `proto->X`
+  fns read. A generated-class or compiled prototype passed in comes back as
+  it is; a DynamicMessage is re-resolved, so a consumer that built one
+  before 0.2.0 wraps that one call and needs no other change."
+  ^Message [x]
+  (cond
+    (instance? Descriptors$Descriptor x)
+    (let [^Descriptors$Descriptor d x] (prototype-for d (java-class-hint d)))
+
+    (instance? DynamicMessage x)
+    (prototype (.getDescriptorForType ^Message x))
+
+    (instance? Message x) x
+
+    :else (throw (ex-info (str "not a Descriptor or Message: " (some-> x class .getName))
+                          {:clj-protobuf/error :no-such-type
+                           :value x}))))
+
 (defn message
   "The prototype for a message type: a default instance whose
   `.newBuilderForType` the generated `->proto` fns drive.
@@ -148,11 +305,7 @@
   same field descriptors, same bytes on every arm."
   (^Message [fd lookup] (message fd lookup nil))
   (^Message [^Descriptors$FileDescriptor fd ^String lookup class-hint]
-   (let [descriptor (resolve-descriptor fd lookup)]
-     (or (when class-hint (hinted-default-instance class-hint descriptor))
-         (if (and compiled-codec? (not (.isExtendable descriptor)))
-           (message/prototype descriptor)
-           (DynamicMessage/getDefaultInstance descriptor))))))
+   (prototype-for (resolve-descriptor fd lookup) class-hint)))
 
 ;; ---------------------------------------------------------------------------
 ;; Field handles

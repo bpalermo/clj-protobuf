@@ -134,3 +134,18 @@
   (testing "an unknown name is a type mismatch, as before"
     (is (thrown? clojure.lang.ExceptionInfo
                  (e2024/Kitchen->proto {:enum-field :COLOR_PLAID})))))
+
+(deftest prototypes-from-descriptors-take-the-hinted-arm
+  (testing "with the generated classes on the classpath, a bare Descriptor — what a
+            gRPC marshaller holds — resolves to the generated class, the arm the
+            namespace's proto->X fns read, without the caller knowing protoc's
+            naming rules"
+    (doseq [[proto cls] [[e2024/Kitchen-prototype com.acme.fixtures.e2024.Kitchen]
+                         [e2024/NestedInFileClass-prototype com.acme.fixtures.e2024.KitchenProto$NestedInFileClass]
+                         [p2/Kitchen-prototype com.acme.fixtures.p2.Kitchen]]]
+      (let [d (.getDescriptorForType ^com.google.protobuf.Message proto)]
+        (is (instance? cls (rt/prototype d)))
+        (is (identical? (class proto) (class (rt/prototype d)))))))
+  (testing "a DynamicMessage built the old way is re-resolved onto the generated class"
+    (is (instance? com.acme.fixtures.e2024.Kitchen
+                   (rt/prototype (rt/dynamic-message e2024/file-descriptor "Kitchen"))))))

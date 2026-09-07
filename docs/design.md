@@ -61,8 +61,15 @@ pool from the embedded bytes — and protobuf-java forbids using one pool's
 `FieldDescriptor` against the other's messages. Generated code is immune by
 construction (every handle chains off the prototype), but anything else that
 manufactures prototypes for the same types — clj-grpc's marshallers, say —
-must resolve them the same way, hint first, same fallback. The wire is where
-pools meet; field access is where they must not.
+must resolve them the same way, hint first, same fallback. Since 0.2.1 that
+is one call: `rt/prototype` takes a bare `Descriptor` (or any `Message` of
+the type) and returns the arm the generated namespace got, deriving the
+class hint by the emitter's own rule (`rt/java-class-hint`, a port of it,
+which reads `nest_in_file_class` both as an unknown field and as a known
+extension, because in the consumer's JVM a loaded generated class makes it
+the latter). A DynamicMessage passed in is re-resolved, so a library that
+built one before 0.2.0 wraps that call and changes nothing else. The wire is
+where pools meet; field access is where they must not.
 
 ## The compiled codec
 

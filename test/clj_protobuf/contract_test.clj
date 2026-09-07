@@ -197,3 +197,39 @@
                                        (.build))
                                    h nil)]
           (is (= {:f1 "a" :f12 "z"} few)))))))
+
+(deftest prototypes-from-descriptors
+  (testing "rt/prototype derives the emitter's own class hint from a Descriptor"
+    (doseq [[expected proto] [["com.acme.fixtures.p2.Kitchen" fixtures.p2.kitchen/Kitchen-prototype]
+                              ["com.acme.fixtures.e2023.Kitchen" fixtures.e2023.kitchen/Kitchen-prototype]
+                              ["com.acme.fixtures.e2024.Kitchen" e2024/Kitchen-prototype]
+                              ["com.acme.fixtures.e2024.KitchenProto$NestedInFileClass" e2024/NestedInFileClass-prototype]
+                              ["com.acme.fixtures.e2024legacy.legacyStyleMessage" legacy/legacyStyleMessage-prototype]
+                              ["com.acme.fixtures.nested.Outer$Inner$Innermost" nested/Outer-Inner-Innermost-prototype]
+                              ["com.acme.fixtures.bench.Tiny" shapes/Tiny-prototype]]]
+      (is (= expected (rt/java-class-hint (.getDescriptorForType ^Message proto))) expected)))
+  (testing "well-known types: java_multiple_files gives a hint that resolves, so the
+            generated class itself, exactly as the hinted arm would"
+    (let [ts (.findMessageTypeByName (rt/known-file "google/protobuf/timestamp.proto") "Timestamp")]
+      (is (= "com.google.protobuf.Timestamp" (rt/java-class-hint ts)))
+      (is (instance? com.google.protobuf.Timestamp (rt/prototype ts)))))
+  (testing "pre-2024 without java_multiple_files: no guess, the compiled arm"
+    (let [fdp (.findMessageTypeByName (rt/known-file "google/protobuf/descriptor.proto") "FileDescriptorProto")]
+      (is (nil? (rt/java-class-hint fdp)))
+      (is (identical? (class (rt/message e2024/file-descriptor "Kitchen")) (class (rt/prototype fdp))))))
+  (testing "without the generated classes, a Descriptor lands on the same arm the
+            namespace's own prototype did"
+    (doseq [^Message proto [e2024/Kitchen-prototype p3/Kitchen-prototype nested/Outer-Inner-prototype]]
+      (let [d (.getDescriptorForType proto)
+            via-descriptor (rt/prototype d)]
+        (is (identical? (class proto) (class via-descriptor)))
+        (is (identical? d (.getDescriptorForType via-descriptor)) "same pool"))))
+  (testing "a DynamicMessage prototype built the old way is re-resolved; the other arms pass through"
+    (let [dyn (rt/dynamic-message e2024/file-descriptor "Kitchen")
+          resolved (rt/prototype dyn)]
+      (is (not (instance? com.google.protobuf.DynamicMessage resolved)))
+      (is (identical? (class e2024/Kitchen-prototype) (class resolved)))
+      (is (identical? e2024/Kitchen-prototype (rt/prototype e2024/Kitchen-prototype)))))
+  (testing "anything else is a :no-such-type error"
+    (is (= :no-such-type (try (rt/prototype "Kitchen") nil
+                              (catch clojure.lang.ExceptionInfo e (:clj-protobuf/error (ex-data e))))))))
