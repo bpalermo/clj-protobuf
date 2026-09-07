@@ -220,6 +220,29 @@ clj_test(
     deps = [":errors_test_lib"],
 )
 
+# The wire layer, primitive by primitive, against protobuf-java on the same
+# bytes: our writer's bytes parse as DynamicMessage's value, DynamicMessage's
+# bytes read back through our reader, sizes agree with lengths. Needs no
+# generated Java classes, so it runs on the plain-clj leg too.
+clj_library(
+    name = "wire_test_lib",
+    srcs = ["clj_protobuf/wire_test.clj"],
+    namespaces = ["clj-protobuf.wire-test"],
+    strip_prefix = "test",
+    deps = [
+        ":fixtures",
+        "//src:clj_protobuf",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_test(
+    name = "wire_test",
+    ns = "clj-protobuf.wire-test",
+    deps = [":wire_test_lib"],
+)
+
 # The equivalence harness: every arm of the runtime — hinted, DynamicMessage,
 # and the compiled codec once it exists — must produce protoc's bytes and read
 # the same values, over the wire corpus in //test/proto/fixtures/wire and over
