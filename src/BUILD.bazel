@@ -15,6 +15,7 @@ clj_library(
     namespaces = [
         "clj-protobuf.impl.naming",
         "clj-protobuf.impl.invoke",
+        "clj-protobuf.impl.wire",
         "clj-protobuf.runtime",
         "clj-protobuf.codec",
         "clj-protobuf.core",
@@ -41,6 +42,7 @@ clj_library(
     namespaces = [
         "clj-protobuf.impl.naming",
         "clj-protobuf.impl.invoke",
+        "clj-protobuf.impl.wire",
         "clj-protobuf.runtime",
         "clj-protobuf.codec",
         "clj-protobuf.core",
