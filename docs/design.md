@@ -48,10 +48,12 @@ proto3, editions 2023/2024, DELIMITED, IMPLICIT presence and STYLE_LEGACY.
 
 `rt/message`'s third argument is a Java class hint. When the class exists and
 its descriptor's full name matches, the prototype is the generated class's
-default instance — measured ~2.4× faster to encode with ~3× less allocation
-on small messages than DynamicMessage, with byte-identical output (the
-byte-identity suite proves both arms against protoc's own Java backend). Any
-hint failure is silent: being wrong costs the optimisation, never the bytes.
+default instance — protoc's own serializer, the fastest arm, with
+byte-identical output (the byte-identity suite proves every arm against
+protoc's own Java backend). Any hint failure is silent: being wrong costs
+the optimisation, never the bytes. Without a usable hint the prototype is
+the compiled codec's (next section); DynamicMessage serves only extendable
+types and `-Dclj-protobuf.codec=dynamic`.
 
 The consequence worth a rule: the hinted prototype lives in the *generated
 classes'* descriptor pool, while the `file-descriptor` var builds a separate
@@ -62,14 +64,71 @@ manufactures prototypes for the same types — clj-grpc's marshallers, say —
 must resolve them the same way, hint first, same fallback. The wire is where
 pools meet; field access is where they must not.
 
+## The compiled codec
+
+Before 0.2.0 the arm without generated classes was DynamicMessage, and a
+profile of a gRPC service on it said where the time went: a quarter to a
+third of CPU per request was DynamicMessage's FieldSet and SmallSortedMap,
+protobuf-java resolving edition features on every `FieldDescriptor.getType`,
+and the reflective accessor lookups — the representation, not the wire
+parsing, which was 14–21%. None of that is reachable from the codec fns:
+generated `->proto` code obtains its builder from the prototype `rt/message`
+returned, so a runtime-only fix had to replace the prototype.
+
+It does. `rt/message` now returns a `Message` implemented here
+(`impl/message.clj`): a compiled type, an `Object[]` of slots — one per
+field, in descriptor order, nil for absent — and an `UnknownFieldSet`. Its
+builder is the same, mutable; its parser owns fresh slots. The compiled
+type (`impl/compile.clj`) is the descriptor walked once, the first time the
+type is used: a writer per field over `CodedOutputStream`, in field-number
+order; a reader table keyed by tag, dense when the field numbers allow and
+binary-searched otherwise, in which a repeated scalar registers both its
+packed and its expanded tag because a parser accepts either; oneof
+membership, so a member read off the wire clears its siblings; the required
+slots. Every edition feature that changes bytes — packed, DELIMITED,
+IMPLICIT presence, utf8 validation, closed enums — is decided here from the
+resolved descriptor and never consulted again. The primitives themselves
+(`impl/wire.clj`) stay protobuf-java's: varints, zigzag, fixed widths,
+UTF-8 and the length arithmetic are `CodedInputStream` and
+`CodedOutputStream` calls chosen once per field instead of once per value.
+Nested types compile lazily behind an `IDeref`, which is what makes cyclic
+descriptors terminate.
+
+Three rules keep the arms interchangeable. Fields without presence are
+normalized so nil also means the default — readers and setters store nil
+for the default value, reads substitute it back — which is what makes
+re-encoding bytes that carried an explicit default drop it, as every
+protobuf implementation does. Collections in slots are never mutated in
+place once a message may share them: a builder that has built, or came
+from `toBuilder`, copies before touching one. And the reflective API returns
+exactly what protobuf-java's does — `EnumValueDescriptor` for enums, entry
+messages for maps, nested default instances for unset message fields — with
+`equals`, `hashCode` and `toString` following `AbstractMessage`'s algorithm,
+so a compiled message equals and hashes like a DynamicMessage of the same
+value, TextFormat prints and parses it, and grpc-java's marshaller — which
+trusts `getSerializedSize()` and then `writeTo(OutputStream)` — is served
+byte for byte. The codec bypasses all of that: on a compiled prototype a
+handle carries its slot index, `set-field!` coerces and stores the slot,
+`get-field` reads it.
+
+The kill switch is a JVM system property, `clj-protobuf.codec=dynamic`,
+read once at load — `rt/message` runs when a generated namespace loads,
+under AOT or inside a native image, where binding a Var first is
+impractical — and it makes a soak A/B a one-line environment change.
+`rt/dynamic-message` and `rt/compiled-message` hand out either arm
+explicitly, which is how the equivalence suite drives all three through the
+wire corpus and values generated from the descriptors themselves.
+
 ## FieldHandle: pay at def-time, not per call
 
 `rt/field` returns a record precomputing everything the codec's hot path
 needs: a kind keyword to `case` on, repeated/map flags, presence, the enum
-type, map key/value handles, and — for message fields — a nested prototype
-obtained through `newBuilderForField`, so it has the right concrete class for
-this prototype's lineage in both pools, plus delayed child handles (delayed
-because descriptors can be cyclic). Generated code stores handles in vars, so
+type, map key/value handles, on the compiled arm the slot index and the
+default in slot representation, and — for message fields — a nested
+prototype of this prototype's own lineage (through `newBuilderForField` for
+generated and dynamic parents, straight from the compiler for compiled
+ones, so that a map's entry type and its children are compiled too), plus
+delayed child handles (delayed because descriptors can be cyclic). Generated code stores handles in vars, so
 the descriptor API is walked once per field per namespace load, and the codec
 never touches it again.
 
@@ -145,16 +204,19 @@ compile in the consumer's process, so records specialize against the
 consumer's own dependency versions.
 
 Gates, all riding `bazel test //...`: the contract and byte-identity suites,
-the equivalence suite (every arm of the runtime — hinted, DynamicMessage, and
-any future codec — must produce protoc's bytes and read the same values, over
-a wire corpus covering every scalar wire type, packed and unpacked repeateds,
+the equivalence suite (every arm of the runtime — hinted, DynamicMessage,
+compiled — must produce protoc's bytes and read the same values, over a wire
+corpus covering every scalar wire type, packed and unpacked repeateds,
 closed and open enums, groups, explicit defaults, required fields, and the
 editions features that change bytes, plus values generated from the
-descriptors themselves), the error suite, the reflection gate (over the
-library, and separately over the interop=true fixtures, whose whole premise
-is direct typed calls), a fixture drift test, buildifier formatting, and a
-version-consistency test keeping the README install snippet equal to
-`version.edn` — the one version copy no other machine checks.
+descriptors themselves), the compiled codec's own suites (the wire
+primitives, the compiler's tables and loops, and the message layer's parity
+with DynamicMessage, all against protobuf-java on the same bytes), the error
+suite, the reflection gate (over the library, and separately over the
+interop=true fixtures, whose whole premise is direct typed calls), a fixture
+drift test, buildifier formatting, and a version-consistency test keeping
+the README install snippet equal to `version.edn` — the one version copy no
+other machine checks.
 
 The fixtures under `test/fixtures` are vendored emitter output and stay
 vendored: the plain-clj leg reads them from disk, a pull request shows an
