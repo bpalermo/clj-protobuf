@@ -16,7 +16,7 @@
 
 ;; ---------------------------------------------------------------
 ;; messages
-(declare Flat->proto Tiny->proto Deep->proto Level2->proto Level3->proto Level4->proto WideRepeated->proto RepeatedMessages->proto MapHeavy->proto EnumHeavy->proto)
+(declare Flat->proto Tiny->proto Deep->proto Level2->proto Level3->proto Level4->proto WideRepeated->proto RepeatedMessages->proto MapHeavy->proto EnumHeavy->proto proto->Tiny--map proto->Level2--map proto->Level3--map proto->Level4--map)
 ;;
 ;; The shape is known at codegen time, so the representation is too:
 ;; a defrecord per type, its FieldDescriptors resolved once into
@@ -76,20 +76,36 @@
   "protobuf -> a Flat record. Absent fields are nil."
   ([msg] (proto->Flat msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->Flat
-    (codec/get-field msg Flat--f1 opts)
-    (codec/get-field msg Flat--f2 opts)
-    (codec/get-field msg Flat--f3 opts)
-    (codec/get-field msg Flat--f4 opts)
-    (codec/get-field msg Flat--f5 opts)
-    (codec/get-field msg Flat--f6 opts)
-    (codec/get-field msg Flat--f7 opts)
-    (codec/get-field msg Flat--f8 opts)
-    (codec/get-field msg Flat--f9 opts)
-    (codec/get-field msg Flat--f10 opts)
-    (codec/get-field msg Flat--f11 opts)
-    (codec/get-field msg Flat--f12 opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.bench.Flat msg))
+     (let [^com.acme.fixtures.bench.Flat m msg]
+       (->Flat
+        (when (.hasF1 m) (.getF1 m))
+        (when (.hasF2 m) (.getF2 m))
+        (when (.hasF3 m) (.getF3 m))
+        (when (.hasF4 m) (.getF4 m))
+        (when (.hasF5 m) (.getF5 m))
+        (when (.hasF6 m) (.getF6 m))
+        (when (.hasF7 m) (.getF7 m))
+        (when (.hasF8 m) (.getF8 m))
+        (when (.hasF9 m) (.getF9 m))
+        (when (.hasF10 m) (.getF10 m))
+        (when (.hasF11 m) (.getF11 m))
+        (when (.hasF12 m) (.getF12 m))
+        ))
+     (->Flat
+      (codec/get-field msg Flat--f1 opts)
+      (codec/get-field msg Flat--f2 opts)
+      (codec/get-field msg Flat--f3 opts)
+      (codec/get-field msg Flat--f4 opts)
+      (codec/get-field msg Flat--f5 opts)
+      (codec/get-field msg Flat--f6 opts)
+      (codec/get-field msg Flat--f7 opts)
+      (codec/get-field msg Flat--f8 opts)
+      (codec/get-field msg Flat--f9 opts)
+      (codec/get-field msg Flat--f10 opts)
+      (codec/get-field msg Flat--f11 opts)
+      (codec/get-field msg Flat--f12 opts)
+      ))))
 
 (defrecord Tiny [id n ok])
 (def Tiny-prototype (rt/message file-descriptor "Tiny" "com.acme.fixtures.bench.Tiny"))
@@ -116,11 +132,35 @@
   "protobuf -> a Tiny record. Absent fields are nil."
   ([msg] (proto->Tiny msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->Tiny
-    (codec/get-field msg Tiny--id opts)
-    (codec/get-field msg Tiny--n opts)
-    (codec/get-field msg Tiny--ok opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.bench.Tiny msg))
+     (let [^com.acme.fixtures.bench.Tiny m msg]
+       (->Tiny
+        (when (.hasId m) (.getId m))
+        (when (.hasN m) (.getN m))
+        (when (.hasOk m) (.getOk m))
+        ))
+     (->Tiny
+      (codec/get-field msg Tiny--id opts)
+      (codec/get-field msg Tiny--n opts)
+      (codec/get-field msg Tiny--ok opts)
+      ))))
+(defn- proto->Tiny--map
+  "Tiny as the plain map a nested field reads back as:
+  the same values, minus the keys the codec's read leaves out."
+  [^com.acme.fixtures.bench.Tiny m]
+  (let [id--v (when (.hasId m) (.getId m))
+        n--v (when (.hasN m) (.getN m))
+        ok--v (when (.hasOk m) (.getOk m))]
+    (if (and (some? id--v) (some? n--v) (some? ok--v))
+      {:id id--v
+       :n n--v
+       :ok ok--v}
+      (persistent!
+       (cond-> (transient {})
+         (some? id--v) (assoc! :id id--v)
+         (some? n--v) (assoc! :n n--v)
+         (some? ok--v) (assoc! :ok ok--v)
+         )))))
 
 (defrecord Deep [id child])
 (def Deep-prototype (rt/message file-descriptor "Deep" "com.acme.fixtures.bench.Deep"))
@@ -144,10 +184,16 @@
   "protobuf -> a Deep record. Absent fields are nil."
   ([msg] (proto->Deep msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->Deep
-    (codec/get-field msg Deep--id opts)
-    (codec/get-field msg Deep--child opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.bench.Deep msg))
+     (let [^com.acme.fixtures.bench.Deep m msg]
+       (->Deep
+        (when (.hasId m) (.getId m))
+        (when (.hasChild m) (proto->Level2--map (.getChild m)))
+        ))
+     (->Deep
+      (codec/get-field msg Deep--id opts)
+      (codec/get-field msg Deep--child opts)
+      ))))
 
 (defrecord Level2 [id child])
 (def Level2-prototype (rt/message file-descriptor "Level2" "com.acme.fixtures.bench.Level2"))
@@ -171,10 +217,30 @@
   "protobuf -> a Level2 record. Absent fields are nil."
   ([msg] (proto->Level2 msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->Level2
-    (codec/get-field msg Level2--id opts)
-    (codec/get-field msg Level2--child opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.bench.Level2 msg))
+     (let [^com.acme.fixtures.bench.Level2 m msg]
+       (->Level2
+        (when (.hasId m) (.getId m))
+        (when (.hasChild m) (proto->Level3--map (.getChild m)))
+        ))
+     (->Level2
+      (codec/get-field msg Level2--id opts)
+      (codec/get-field msg Level2--child opts)
+      ))))
+(defn- proto->Level2--map
+  "Level2 as the plain map a nested field reads back as:
+  the same values, minus the keys the codec's read leaves out."
+  [^com.acme.fixtures.bench.Level2 m]
+  (let [id--v (when (.hasId m) (.getId m))
+        child--v (when (.hasChild m) (proto->Level3--map (.getChild m)))]
+    (if (and (some? id--v) (some? child--v))
+      {:id id--v
+       :child child--v}
+      (persistent!
+       (cond-> (transient {})
+         (some? id--v) (assoc! :id id--v)
+         (some? child--v) (assoc! :child child--v)
+         )))))
 
 (defrecord Level3 [id child])
 (def Level3-prototype (rt/message file-descriptor "Level3" "com.acme.fixtures.bench.Level3"))
@@ -198,10 +264,30 @@
   "protobuf -> a Level3 record. Absent fields are nil."
   ([msg] (proto->Level3 msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->Level3
-    (codec/get-field msg Level3--id opts)
-    (codec/get-field msg Level3--child opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.bench.Level3 msg))
+     (let [^com.acme.fixtures.bench.Level3 m msg]
+       (->Level3
+        (when (.hasId m) (.getId m))
+        (when (.hasChild m) (proto->Level4--map (.getChild m)))
+        ))
+     (->Level3
+      (codec/get-field msg Level3--id opts)
+      (codec/get-field msg Level3--child opts)
+      ))))
+(defn- proto->Level3--map
+  "Level3 as the plain map a nested field reads back as:
+  the same values, minus the keys the codec's read leaves out."
+  [^com.acme.fixtures.bench.Level3 m]
+  (let [id--v (when (.hasId m) (.getId m))
+        child--v (when (.hasChild m) (proto->Level4--map (.getChild m)))]
+    (if (and (some? id--v) (some? child--v))
+      {:id id--v
+       :child child--v}
+      (persistent!
+       (cond-> (transient {})
+         (some? id--v) (assoc! :id id--v)
+         (some? child--v) (assoc! :child child--v)
+         )))))
 
 (defrecord Level4 [id leaf])
 (def Level4-prototype (rt/message file-descriptor "Level4" "com.acme.fixtures.bench.Level4"))
@@ -225,10 +311,30 @@
   "protobuf -> a Level4 record. Absent fields are nil."
   ([msg] (proto->Level4 msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->Level4
-    (codec/get-field msg Level4--id opts)
-    (codec/get-field msg Level4--leaf opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.bench.Level4 msg))
+     (let [^com.acme.fixtures.bench.Level4 m msg]
+       (->Level4
+        (when (.hasId m) (.getId m))
+        (when (.hasLeaf m) (.getLeaf m))
+        ))
+     (->Level4
+      (codec/get-field msg Level4--id opts)
+      (codec/get-field msg Level4--leaf opts)
+      ))))
+(defn- proto->Level4--map
+  "Level4 as the plain map a nested field reads back as:
+  the same values, minus the keys the codec's read leaves out."
+  [^com.acme.fixtures.bench.Level4 m]
+  (let [id--v (when (.hasId m) (.getId m))
+        leaf--v (when (.hasLeaf m) (.getLeaf m))]
+    (if (and (some? id--v) (some? leaf--v))
+      {:id id--v
+       :leaf leaf--v}
+      (persistent!
+       (cond-> (transient {})
+         (some? id--v) (assoc! :id id--v)
+         (some? leaf--v) (assoc! :leaf leaf--v)
+         )))))
 
 (defrecord WideRepeated [id items])
 (def WideRepeated-prototype (rt/message file-descriptor "WideRepeated" "com.acme.fixtures.bench.WideRepeated"))
@@ -252,10 +358,16 @@
   "protobuf -> a WideRepeated record. Absent fields are nil."
   ([msg] (proto->WideRepeated msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->WideRepeated
-    (codec/get-field msg WideRepeated--id opts)
-    (codec/get-field msg WideRepeated--items opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.bench.WideRepeated msg))
+     (let [^com.acme.fixtures.bench.WideRepeated m msg]
+       (->WideRepeated
+        (when (.hasId m) (.getId m))
+        (let [l (.getItemsList m)] (when-not (.isEmpty l) (vec l)))
+        ))
+     (->WideRepeated
+      (codec/get-field msg WideRepeated--id opts)
+      (codec/get-field msg WideRepeated--items opts)
+      ))))
 
 (defrecord RepeatedMessages [id rows])
 (def RepeatedMessages-prototype (rt/message file-descriptor "RepeatedMessages" "com.acme.fixtures.bench.RepeatedMessages"))
@@ -279,10 +391,16 @@
   "protobuf -> a RepeatedMessages record. Absent fields are nil."
   ([msg] (proto->RepeatedMessages msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->RepeatedMessages
-    (codec/get-field msg RepeatedMessages--id opts)
-    (codec/get-field msg RepeatedMessages--rows opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.bench.RepeatedMessages msg))
+     (let [^com.acme.fixtures.bench.RepeatedMessages m msg]
+       (->RepeatedMessages
+        (when (.hasId m) (.getId m))
+        (let [l (.getRowsList m)] (when-not (.isEmpty l) (persistent! (reduce (fn [acc v] (conj! acc (proto->Tiny--map v))) (transient []) l))))
+        ))
+     (->RepeatedMessages
+      (codec/get-field msg RepeatedMessages--id opts)
+      (codec/get-field msg RepeatedMessages--rows opts)
+      ))))
 
 (defrecord MapHeavy [id counts])
 (def MapHeavy-prototype (rt/message file-descriptor "MapHeavy" "com.acme.fixtures.bench.MapHeavy"))
@@ -306,10 +424,16 @@
   "protobuf -> a MapHeavy record. Absent fields are nil."
   ([msg] (proto->MapHeavy msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->MapHeavy
-    (codec/get-field msg MapHeavy--id opts)
-    (codec/get-field msg MapHeavy--counts opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.bench.MapHeavy msg))
+     (let [^com.acme.fixtures.bench.MapHeavy m msg]
+       (->MapHeavy
+        (when (.hasId m) (.getId m))
+        (let [jm (.getCountsMap m)] (when-not (.isEmpty jm) (persistent! (reduce (fn [acc ^java.util.Map$Entry e] (assoc! acc (.getKey e) (.getValue e))) (transient {}) (.entrySet jm)))))
+        ))
+     (->MapHeavy
+      (codec/get-field msg MapHeavy--id opts)
+      (codec/get-field msg MapHeavy--counts opts)
+      ))))
 
 (defrecord EnumHeavy [id s1 s2 s3 s4 s5 s6 s7 s8 history])
 (def EnumHeavy-prototype (rt/message file-descriptor "EnumHeavy" "com.acme.fixtures.bench.EnumHeavy"))
@@ -357,15 +481,29 @@
   "protobuf -> a EnumHeavy record. Absent fields are nil."
   ([msg] (proto->EnumHeavy msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->EnumHeavy
-    (codec/get-field msg EnumHeavy--id opts)
-    (codec/get-field msg EnumHeavy--s1 opts)
-    (codec/get-field msg EnumHeavy--s2 opts)
-    (codec/get-field msg EnumHeavy--s3 opts)
-    (codec/get-field msg EnumHeavy--s4 opts)
-    (codec/get-field msg EnumHeavy--s5 opts)
-    (codec/get-field msg EnumHeavy--s6 opts)
-    (codec/get-field msg EnumHeavy--s7 opts)
-    (codec/get-field msg EnumHeavy--s8 opts)
-    (codec/get-field msg EnumHeavy--history opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.bench.EnumHeavy msg))
+     (let [^com.acme.fixtures.bench.EnumHeavy m msg]
+       (->EnumHeavy
+        (when (.hasId m) (.getId m))
+        (when (.hasS1 m) (case (.getS1Value m) 0 :STATUS_UNSPECIFIED 1 :STATUS_ACTIVE 2 :STATUS_PAUSED 3 :STATUS_CLOSED (codec/get-field m EnumHeavy--s1 nil)))
+        (when (.hasS2 m) (case (.getS2Value m) 0 :STATUS_UNSPECIFIED 1 :STATUS_ACTIVE 2 :STATUS_PAUSED 3 :STATUS_CLOSED (codec/get-field m EnumHeavy--s2 nil)))
+        (when (.hasS3 m) (case (.getS3Value m) 0 :STATUS_UNSPECIFIED 1 :STATUS_ACTIVE 2 :STATUS_PAUSED 3 :STATUS_CLOSED (codec/get-field m EnumHeavy--s3 nil)))
+        (when (.hasS4 m) (case (.getS4Value m) 0 :STATUS_UNSPECIFIED 1 :STATUS_ACTIVE 2 :STATUS_PAUSED 3 :STATUS_CLOSED (codec/get-field m EnumHeavy--s4 nil)))
+        (when (.hasS5 m) (case (.getS5Value m) 0 :STATUS_UNSPECIFIED 1 :STATUS_ACTIVE 2 :STATUS_PAUSED 3 :STATUS_CLOSED (codec/get-field m EnumHeavy--s5 nil)))
+        (when (.hasS6 m) (case (.getS6Value m) 0 :STATUS_UNSPECIFIED 1 :STATUS_ACTIVE 2 :STATUS_PAUSED 3 :STATUS_CLOSED (codec/get-field m EnumHeavy--s6 nil)))
+        (when (.hasS7 m) (case (.getS7Value m) 0 :STATUS_UNSPECIFIED 1 :STATUS_ACTIVE 2 :STATUS_PAUSED 3 :STATUS_CLOSED (codec/get-field m EnumHeavy--s7 nil)))
+        (when (.hasS8 m) (case (.getS8Value m) 0 :STATUS_UNSPECIFIED 1 :STATUS_ACTIVE 2 :STATUS_PAUSED 3 :STATUS_CLOSED (codec/get-field m EnumHeavy--s8 nil)))
+        (codec/get-field m EnumHeavy--history nil)
+        ))
+     (->EnumHeavy
+      (codec/get-field msg EnumHeavy--id opts)
+      (codec/get-field msg EnumHeavy--s1 opts)
+      (codec/get-field msg EnumHeavy--s2 opts)
+      (codec/get-field msg EnumHeavy--s3 opts)
+      (codec/get-field msg EnumHeavy--s4 opts)
+      (codec/get-field msg EnumHeavy--s5 opts)
+      (codec/get-field msg EnumHeavy--s6 opts)
+      (codec/get-field msg EnumHeavy--s7 opts)
+      (codec/get-field msg EnumHeavy--s8 opts)
+      (codec/get-field msg EnumHeavy--history opts)
+      ))))

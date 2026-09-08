@@ -28,6 +28,9 @@ write_source_files(
         "fixtures/fixtures/wire/p3.clj": "//test/proto:fixtures/wire/p3.clj",
         "fixtures/interop/fixtures/bench/shapes.clj": "//test/proto:interop/fixtures/bench/shapes.clj",
         "fixtures/interop/fixtures/e2024/kitchen.clj": "//test/proto:interop/fixtures/e2024/kitchen.clj",
+        "fixtures/interop/fixtures/wire/e2024.clj": "//test/proto:interop/fixtures/wire/e2024.clj",
+        "fixtures/interop/fixtures/wire/p2.clj": "//test/proto:interop/fixtures/wire/p2.clj",
+        "fixtures/interop/fixtures/wire/p3.clj": "//test/proto:interop/fixtures/wire/p3.clj",
     },
 )
 
@@ -86,6 +89,9 @@ clj_library(
     namespaces = [
         "interop.fixtures.e2024.kitchen",
         "interop.fixtures.bench.shapes",
+        "interop.fixtures.wire.p2",
+        "interop.fixtures.wire.p3",
+        "interop.fixtures.wire.e2024",
     ],
     strip_prefix = "test/fixtures",
     deps = [
@@ -108,6 +114,9 @@ clj_library(
     namespaces = [
         "interop.fixtures.e2024.kitchen",
         "interop.fixtures.bench.shapes",
+        "interop.fixtures.wire.p2",
+        "interop.fixtures.wire.p3",
+        "interop.fixtures.wire.e2024",
     ],
     strip_prefix = "test/fixtures",
     deps = [

@@ -48,12 +48,18 @@ proto_library(
 )
 
 # The interop=true fixtures come from a subset: the plugin emits one file per
-# proto in the library, and the interop suite validates these two.
+# proto in the library. The wire corpus is here as well as the two headline
+# fixtures, so the typed arm is checked against groups, packed and unpacked
+# repeateds, closed enums, aliased enums, forbidden accessor names and every
+# editions wire feature — not just the shapes a benchmark happens to use.
 proto_library(
     name = "fixtures_interop_proto",
     srcs = [
         "fixtures/bench/shapes.proto",
         "fixtures/e2024/kitchen.proto",
+        "fixtures/wire/e2024.proto",
+        "fixtures/wire/p2.proto",
+        "fixtures/wire/p3.proto",
     ],
     option_deps = ["@protobuf//:java_features_proto"],
     strip_import_prefix = "/test/proto",
@@ -97,6 +103,9 @@ clojure_proto_library(
     outs = [
         "interop/fixtures/bench/shapes.clj",
         "interop/fixtures/e2024/kitchen.clj",
+        "interop/fixtures/wire/e2024.clj",
+        "interop/fixtures/wire/p2.clj",
+        "interop/fixtures/wire/p3.clj",
     ],
     options = {
         "interop": "true",

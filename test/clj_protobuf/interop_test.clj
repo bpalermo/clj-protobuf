@@ -6,7 +6,13 @@
             [clj-protobuf.core :as pb]
             [fixtures.e2024.kitchen :as std]
             [interop.fixtures.e2024.kitchen :as fast]
-            [interop.fixtures.bench.shapes :as fast-shapes]))
+            [interop.fixtures.bench.shapes :as fast-shapes]
+            [fixtures.wire.p2 :as swp2]
+            [fixtures.wire.p3 :as swp3]
+            [fixtures.wire.e2024 :as swe]
+            [interop.fixtures.wire.p2 :as fwp2]
+            [interop.fixtures.wire.p3 :as fwp3]
+            [interop.fixtures.wire.e2024 :as fwe]))
 
 (def kitchen-value
   {:str-field "hello" :int-field 42 :bool-field true
@@ -53,3 +59,76 @@
           [[#'fast-shapes/Tiny->proto {:id "t" :n 1 :ok true}]
            [#'fast-shapes/Flat->proto {:f1 "a" :f4 7 :f6 1 :f8 true :f10 1.5}]]]
     (is (some? (pb/encode (to value))))))
+
+;; ---------------------------------------------------------------------------
+;; The wire corpus through both arms
+;;
+;; The two headline fixtures above are the shapes a benchmark uses. These are
+;; the ones a codec gets wrong: groups, packed and unpacked repeateds under
+;; shared field numbers, closed and aliased enums, explicit defaults, required
+;; fields, field names whose Java accessors collide with a method every message
+;; has, and every editions feature that changes bytes. Whatever the emitter
+;; types and whatever it leaves on the codec, the two arms must agree.
+
+(defn- normalize
+  "Byte arrays compare by identity; make them comparable, recursively."
+  [v]
+  (cond
+    (bytes? v) (vec v)
+    (map? v) (into {} (map (fn [[k x]] [k (normalize x)])) v)
+    (sequential? v) (mapv normalize v)
+    :else v))
+
+(def ^:private wire-cases
+  [["wire.p2/Wire" swp2/Wire->proto swp2/Wire-prototype swp2/proto->Wire
+    fwp2/Wire->proto fwp2/Wire-prototype fwp2/proto->Wire
+    [{:i32 -1 :i64 -2 :u32 3 :s32 -5 :f32 7 :sf64 -10 :flt (float 1.5) :dbl 2.5 :flag true
+      :str "héllo 日本 😀" :raw (byte-array [0 127 -128]) :color :CLOSED_B :leaf {:id "leaf"}
+      :unpacked [1 -2 300] :packed [4 5] :colors [:CLOSED_A :CLOSED_B] :leaves [{:id "a"} {:id "b"}]
+      :names ["x" "" "日本"] :by-id {2 {:id "two"}} :by-color {"a" :CLOSED_A} :pick-leaf {:id "p"}
+      :dflt-int 42 :dflt-str "other" :dflt-enum :CLOSED_A :grp {:note "g"} :grps [{:n 1} {:n 2}]
+      :serialized-size 7 :class "cls" :aliased :ALIASED_ALSO_FIRST :high "h" :huge 7}
+     {}
+     {:leaf {}}
+     {:names [] :by-id {}}
+     {:aliased :ALIASED_FIRST}
+     {:leaves [{}]}]]
+   ["wire.p3/Wire" swp3/Wire->proto swp3/Wire-prototype swp3/proto->Wire
+    fwp3/Wire->proto fwp3/Wire-prototype fwp3/proto->Wire
+    [{:i32 -1 :str "s" :raw (byte-array [1 2]) :color :OPEN_B :leaf {:id "l"} :packed [1 -2 300]
+      :unpacked [4 5] :colors [:OPEN_A] :leaves [{:id "a"}] :names ["x"] :by-id {1 {:id "one"}}
+      :by-color {"k" :OPEN_A} :pick-i64 99 :opt-i32 0 :opt-str "" :huge 1}
+     {} {:leaf {}} {:color 42} {:i32 0 :str ""}]]
+   ["wire.e2024/Wire" swe/Wire->proto swe/Wire-prototype swe/proto->Wire
+    fwe/Wire->proto fwe/Wire-prototype fwe/proto->Wire
+    [{:str "s" :checked "c" :expanded [1 2] :packed [3 4] :delimited {:id "d"}
+      :length-prefixed {:id "l"} :implicit 5 :explicit 0 :open :OPEN_A :closed :CLOSED_B
+      :closed-list [:CLOSED_A]}
+     {} {:delimited {}} {:implicit 0} {:open 99}]]])
+
+(deftest wire-corpus-arms-agree
+  (doseq [[name std-to std-proto std-from fast-to fast-proto fast-from values] wire-cases]
+    (testing name
+      (doseq [v values]
+        (testing (pr-str v)
+          (let [sb (pb/encode (std-to v))
+                fb (pb/encode (fast-to v))]
+            (is (java.util.Arrays/equals ^bytes sb ^bytes fb) "same bytes")
+            (let [via-codec (normalize (into {} (std-from (pb/decode std-proto sb))))
+                  via-fast  (normalize (into {} (fast-from (pb/decode fast-proto sb))))]
+              (is (= via-codec via-fast) "same values")
+              (testing "and the fast fn accepts a message from the other arm"
+                (is (= via-codec (normalize (into {} (fast-from (pb/decode std-proto sb)))))))
+              (testing "an opts value routes both onto the codec, same answer again"
+                (is (= via-codec (normalize (into {} (fast-from (pb/decode fast-proto sb) {})))))))))))))
+
+(deftest wire-corpus-edge-shapes
+  (testing "a nested message set to its default instance reads back as {} on both
+            arms, and empty repeated and map fields read back as nil"
+    (let [bs (pb/encode (fwp2/Wire->proto {:leaf {} :names [] :by-id {}}))
+          fast (fwp2/proto->Wire (pb/decode fwp2/Wire-prototype bs))
+          codec (swp2/proto->Wire (pb/decode swp2/Wire-prototype bs))]
+      (is (= {} (:leaf fast)))
+      (is (= {} (:leaf codec)))
+      (is (nil? (:names fast)))
+      (is (nil? (:by-id fast))))))
