@@ -9,8 +9,17 @@ module(
     version = "0.1.5",
 )
 
-# The ruleset, from the Bazel Central Registry.
-bazel_dep(name = "rules_clj", version = "0.2.3")
+# The ruleset, from the Bazel Central Registry. 0.2.4 brings direct linking:
+# clj_library(direct_linking = "on") compiles var calls as static calls. On
+# here for the library and the fixture targets — measured ~10-18% on decode
+# of small and nested shapes — and deliberately not on the bench library
+# (jsonista, criterium and data.json ship as source, which a linked target
+# may not call into: rules_clj refuses the build) nor on the aot = False
+# source variant the reflection gate recompiles. Note that this only speeds
+# THIS repo's tests and bench: the Clojars jar is source-only, so what a
+# consumer gets depends on the consumer's build or on
+# -Dclojure.compiler.direct-linking=true at runtime.
+bazel_dep(name = "rules_clj", version = "0.2.4")
 
 # Dependencies come from deps.edn, resolved once into the committed lockfile by
 # rules_clj's //tools/lock, fetched by digest at build time.

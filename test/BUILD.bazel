@@ -40,6 +40,7 @@ clj_library(
         ["fixtures/**/*.clj"],
         exclude = ["fixtures/fixtures/bench_nohint/**"],
     ),
+    direct_linking = "on",
     namespaces = [
         "fixtures.p2.kitchen",
         "fixtures.p3.kitchen",
@@ -66,6 +67,7 @@ clj_library(
 clj_library(
     name = "fixtures_nohint",
     srcs = ["fixtures/fixtures/bench_nohint/shapes.clj"],
+    direct_linking = "on",
     namespaces = ["fixtures.bench-nohint.shapes"],
     strip_prefix = "test/fixtures",
     deps = [
