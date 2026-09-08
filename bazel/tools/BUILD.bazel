@@ -19,3 +19,20 @@ sh_test(
         "//:version.edn",
     ],
 )
+
+# The lockfile is resolved offline by rules_clj's //tools/lock and committed;
+# a build never re-resolves it, so a dependency added to deps.edn without a
+# relock is simply invisible. MODULE.bazel.lock has --config=strict-lockfile
+# for the same class of mistake; this is the deps.edn half.
+sh_test(
+    name = "deps_lock_consistency_test",
+    srcs = ["deps_lock_consistency_test.sh"],
+    args = [
+        "$(rootpath //:deps.edn)",
+        "$(rootpath //:deps.lock.json)",
+    ],
+    data = [
+        "//:deps.edn",
+        "//:deps.lock.json",
+    ],
+)
