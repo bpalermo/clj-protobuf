@@ -3,7 +3,9 @@
   same semantics, from real generated code — the validation the plugin
   delegates here."
   (:require [clojure.test :refer [deftest is testing]]
+            [clj-protobuf.codec :as codec]
             [clj-protobuf.core :as pb]
+            [clj-protobuf.runtime :as rt]
             [fixtures.e2024.kitchen :as std]
             [interop.fixtures.e2024.kitchen :as fast]
             [interop.fixtures.bench.shapes :as fast-shapes]
@@ -117,8 +119,12 @@
             (let [via-codec (normalize (into {} (std-from (pb/decode std-proto sb))))
                   via-fast  (normalize (into {} (fast-from (pb/decode fast-proto sb))))]
               (is (= via-codec via-fast) "same values")
-              (testing "and the fast fn accepts a message from the other arm"
-                (is (= via-codec (normalize (into {} (fast-from (pb/decode std-proto sb)))))))
+              (testing "the standard fixture's prototype is the SAME generated class
+                        here — its class hint resolves, because this target has
+                        protoc's classes on the classpath. So the line above is
+                        one arm, not two; a genuinely foreign message is the
+                        subject of prototypes-are-not-interchangeable below."
+                (is (identical? (class std-proto) (class fast-proto))))
               (testing "an opts value routes both onto the codec, same answer again"
                 (is (= via-codec (normalize (into {} (fast-from (pb/decode fast-proto sb) {})))))))))))))
 
@@ -132,3 +138,28 @@
       (is (= {} (:leaf codec)))
       (is (nil? (:names fast)))
       (is (nil? (:by-id fast))))))
+
+(deftest prototypes-are-not-interchangeable
+  (testing "a generated proto->X reads its own arm's messages and no other.
+            Its field handles are built on its own prototype: on a hinted
+            namespace they carry LambdaMetafactory invokers over the generated
+            class's accessors, and even without invokers a handle's
+            FieldDescriptor belongs to that prototype's descriptor pool, which
+            protobuf-java forbids using against another pool's messages. So
+            handing proto->X a message from another arm throws rather than
+            decoding — the nil-opts guard chooses between the typed and codec
+            paths, it does not make the fn polymorphic over arms.
+
+            Pinned, not endorsed: crossing arms is already invalid by the pool
+            rule in docs/design.md, and this is what invalid looks like. What
+            matters is that it is loud."
+    (let [bs (pb/encode (fast/Kitchen->proto kitchen-value))
+          foreign (pb/decode (rt/dynamic-message std/file-descriptor "Kitchen") bs)]
+      (is (instance? com.google.protobuf.DynamicMessage foreign))
+      (is (thrown? ClassCastException (fast/proto->Kitchen foreign)))
+      (testing "an opts value does not rescue it: the codec path uses the same handles"
+        (is (thrown? ClassCastException (fast/proto->Kitchen foreign {}))))
+      (testing "and the message decodes fine through its own arm"
+        (is (some? (codec/get-field foreign
+                                    (rt/field (rt/dynamic-message std/file-descriptor "Kitchen") "str_field")
+                                    nil)))))))

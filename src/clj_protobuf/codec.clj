@@ -297,7 +297,13 @@
   "Read one field from a message as a Clojure value. nil means absent: an unset
   explicit-presence field, or an empty repeated/map field. IMPLICIT-presence
   fields (and proto3 no-label scalars) have no absence and return their value,
-  default included. Nested messages come back as plain maps."
+  default included. Nested messages come back as plain maps.
+
+  The handle must be one built on this message's own prototype. A handle
+  carries a FieldDescriptor from its prototype's descriptor pool, and on the
+  hinted arm invokers over that concrete class's accessors, so reading a
+  message of another arm throws rather than answering. See the pools section
+  of docs/design.md."
   ([msg handle] (get-field msg handle nil))
   ([msg ^FieldHandle handle opts]
    (let [^Message m msg
