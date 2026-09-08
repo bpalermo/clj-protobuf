@@ -20,6 +20,16 @@ enum Closed {
   CLOSED_B = 2;
 }
 
+// Two names on one number. The wire carries the number, so every arm must
+// read a round-tripped value back as the same name — protobuf-java's
+// findValueByNumber picks it, and nothing else may pick differently.
+enum Aliased {
+  option allow_alias = true;
+  ALIASED_ZERO = 0;
+  ALIASED_FIRST = 1;
+  ALIASED_ALSO_FIRST = 1;
+}
+
 message Leaf {
   optional string id = 1;
 }
@@ -79,8 +89,17 @@ message Wire {
     optional int32 n = 1;
   }
 
+  // Field names whose Java accessors would collide with a method every
+  // message already has. protoc appends an underscore (getSerializedSize_),
+  // and anything deriving accessor names must do the same: getSerializedSize
+  // exists, returns an int, and would answer with the message's own size.
+  optional int32 serialized_size = 35;
+  optional string class = 36;
+
   // Tags wider than one byte, and the largest field number protobuf allows:
   // a dispatch table keyed by field number has to cope with both.
+  optional Aliased aliased = 37;
+
   optional string high = 2047;
   optional int32 huge = 536870911;
 }

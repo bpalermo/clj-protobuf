@@ -472,10 +472,17 @@
                            (map (fn [^Descriptors$EnumValueDescriptor v]
                                   [(keyword (.getName v)) v]))
                            (.getValues enum-type)))
+                   ;; Aliases (allow_alias) put two names on one number, and a
+                   ;; number is all the wire carries. findValueByNumber is what
+                   ;; the reflective arm resolves a parsed number through, so
+                   ;; both number tables resolve through it too — otherwise the
+                   ;; arms disagree on which alias a round-tripped value reads
+                   ;; back as.
                    (when enum-type
                      (into {}
                            (map (fn [^Descriptors$EnumValueDescriptor v]
-                                  [(long (.getNumber v)) v]))
+                                  [(long (.getNumber v))
+                                   (.findValueByNumber enum-type (.getNumber v))]))
                            (.getValues enum-type)))
                    (:set invokers) (:get invokers) (:has invokers)
                    (:clear invokers)
@@ -486,7 +493,8 @@
                    (when enum-type
                      (into {}
                            (map (fn [^Descriptors$EnumValueDescriptor v]
-                                  [(long (.getNumber v)) (keyword (.getName v))]))
+                                  [(long (.getNumber v))
+                                   (keyword (.getName (.findValueByNumber enum-type (.getNumber v))))]))
                            (.getValues enum-type)))))))
 
 (defn field

@@ -35,4 +35,9 @@
 ;; call resolves the arm the generated namespace got.
 ;;
 ;; 0.2.2: protobuf-java 4.36.1. No change of behaviour; the runtime line moves.
-{:version "0.2.2"}
+;;
+;; 0.2.3: two correctness fixes. A field whose Java accessor would shadow a
+;; method every message has (serialized_size -> getSerializedSize) read the
+;; message's own size on the hinted arm; and aliased enum values read back as
+;; different names on different arms.
+{:version "0.2.3"}

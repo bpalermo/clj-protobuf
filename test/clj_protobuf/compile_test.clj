@@ -89,7 +89,7 @@
         e24 (compile-dynamic (desc we/Wire-prototype))
         k (compile-dynamic (desc kitchen/Kitchen-prototype))]
     (testing "one slot per field, in descriptor order"
-      (is (= 36 (compile/field-count p2)))
+      (is (= 39 (compile/field-count p2)))
       (is (= (.getIndex (fd (:descriptor p2) "huge")) (:slot (field p2 "huge")))))
     (testing "writers are in field-number order, whatever the declaration order"
       (is (= (sort (map :number (:writers p2))) (map :number (:writers p2))))

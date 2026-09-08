@@ -8,7 +8,7 @@
             [clj-protobuf.runtime :as rt]))
 
 (def ^:private descriptor-b64
-  "ChZmaXh0dXJlcy93aXJlL3AyLnByb3RvEhBmaXh0dXJlcy53aXJlLnAyIhYKBExlYWYSDgoCaWQYASABKAlSAmlkIsEKCgRXaXJlEhAKA2kzMhgBIAEoBVIDaTMyEhAKA2k2NBgCIAEoA1IDaTY0EhAKA3UzMhgDIAEoDVIDdTMyEhAKA3U2NBgEIAEoBFIDdTY0EhAKA3MzMhgFIAEoEVIDczMyEhAKA3M2NBgGIAEoElIDczY0EhAKA2YzMhgHIAEoB1IDZjMyEhAKA2Y2NBgIIAEoBlIDZjY0EhIKBHNmMzIYCSABKA9SBHNmMzISEgoEc2Y2NBgKIAEoEFIEc2Y2NBIQCgNmbHQYCyABKAJSA2ZsdBIQCgNkYmwYDCABKAFSA2RibBISCgRmbGFnGA0gASgIUgRmbGFnEhAKA3N0chgOIAEoCVIDc3RyEhAKA3JhdxgPIAEoDFIDcmF3Ei4KBWNvbG9yGBAgASgOMhguZml4dHVyZXMud2lyZS5wMi5DbG9zZWRSBWNvbG9yEioKBGxlYWYYESABKAsyFi5maXh0dXJlcy53aXJlLnAyLkxlYWZSBGxlYWYSGgoIdW5wYWNrZWQYEiADKAVSCHVucGFja2VkEhoKBnBhY2tlZBgTIAMoBUICEAFSBnBhY2tlZBIhCgpwYWNrZWRfczY0GBQgAygSQgIQAVIJcGFja2VkUzY0EiEKCnBhY2tlZF9kYmwYFSADKAFCAhABUglwYWNrZWREYmwSMAoGY29sb3JzGBYgAygOMhguZml4dHVyZXMud2lyZS5wMi5DbG9zZWRSBmNvbG9ycxIuCgZsZWF2ZXMYFyADKAsyFi5maXh0dXJlcy53aXJlLnAyLkxlYWZSBmxlYXZlcxIUCgVuYW1lcxgYIAMoCVIFbmFtZXMSNQoFYnlfaWQYGSADKAsyIC5maXh0dXJlcy53aXJlLnAyLldpcmUuQnlJZEVudHJ5UgRieUlkEj4KCGJ5X2NvbG9yGBogAygLMiMuZml4dHVyZXMud2lyZS5wMi5XaXJlLkJ5Q29sb3JFbnRyeVIHYnlDb2xvchIbCghwaWNrX3N0chgbIAEoCUgAUgdwaWNrU3RyEhsKCHBpY2tfaTY0GBwgASgDSABSB3BpY2tJNjQSNQoJcGlja19sZWFmGB0gASgLMhYuZml4dHVyZXMud2lyZS5wMi5MZWFmSABSCHBpY2tMZWFmEh0KCGRmbHRfaW50GB4gASgFOgI0MlIHZGZsdEludBIfCghkZmx0X3N0chgfIAEoCToEZGZsdFIHZGZsdFN0chI/CglkZmx0X2VudW0YICABKA4yGC5maXh0dXJlcy53aXJlLnAyLkNsb3NlZDoIQ0xPU0VEX0JSCGRmbHRFbnVtEiwKA2dycBghIAEoCjIaLmZpeHR1cmVzLndpcmUucDIuV2lyZS5HcnBSA2dycBIvCgRncnBzGCIgAygKMhsuZml4dHVyZXMud2lyZS5wMi5XaXJlLkdycHNSBGdycHMSEwoEaGlnaBj/DyABKAlSBGhpZ2gSFgoEaHVnZRj/////ASABKAVSBGh1Z2UaTwoJQnlJZEVudHJ5EhAKA2tleRgBIAEoBVIDa2V5EiwKBXZhbHVlGAIgASgLMhYuZml4dHVyZXMud2lyZS5wMi5MZWFmUgV2YWx1ZToCOAEaVAoMQnlDb2xvckVudHJ5EhAKA2tleRgBIAEoCVIDa2V5Ei4KBXZhbHVlGAIgASgOMhguZml4dHVyZXMud2lyZS5wMi5DbG9zZWRSBXZhbHVlOgI4ARoZCgNHcnASEgoEbm90ZRgBIAEoCVIEbm90ZRoUCgRHcnBzEgwKAW4YASABKAVSAW5CBgoEcGljayIoCghSZXF1aXJlZBIOCgJpZBgBIAIoCVICaWQSDAoBbhgCIAEoBVIBbio8CgZDbG9zZWQSFgoSQ0xPU0VEX1VOU1BFQ0lGSUVEEAASDAoIQ0xPU0VEX0EQARIMCghDTE9TRURfQhACQh0KGWNvbS5hY21lLmZpeHR1cmVzLndpcmUucDJQAQ==")
+  "ChZmaXh0dXJlcy93aXJlL3AyLnByb3RvEhBmaXh0dXJlcy53aXJlLnAyIhYKBExlYWYSDgoCaWQYASABKAlSAmlkIrULCgRXaXJlEhAKA2kzMhgBIAEoBVIDaTMyEhAKA2k2NBgCIAEoA1IDaTY0EhAKA3UzMhgDIAEoDVIDdTMyEhAKA3U2NBgEIAEoBFIDdTY0EhAKA3MzMhgFIAEoEVIDczMyEhAKA3M2NBgGIAEoElIDczY0EhAKA2YzMhgHIAEoB1IDZjMyEhAKA2Y2NBgIIAEoBlIDZjY0EhIKBHNmMzIYCSABKA9SBHNmMzISEgoEc2Y2NBgKIAEoEFIEc2Y2NBIQCgNmbHQYCyABKAJSA2ZsdBIQCgNkYmwYDCABKAFSA2RibBISCgRmbGFnGA0gASgIUgRmbGFnEhAKA3N0chgOIAEoCVIDc3RyEhAKA3JhdxgPIAEoDFIDcmF3Ei4KBWNvbG9yGBAgASgOMhguZml4dHVyZXMud2lyZS5wMi5DbG9zZWRSBWNvbG9yEioKBGxlYWYYESABKAsyFi5maXh0dXJlcy53aXJlLnAyLkxlYWZSBGxlYWYSGgoIdW5wYWNrZWQYEiADKAVSCHVucGFja2VkEhoKBnBhY2tlZBgTIAMoBUICEAFSBnBhY2tlZBIhCgpwYWNrZWRfczY0GBQgAygSQgIQAVIJcGFja2VkUzY0EiEKCnBhY2tlZF9kYmwYFSADKAFCAhABUglwYWNrZWREYmwSMAoGY29sb3JzGBYgAygOMhguZml4dHVyZXMud2lyZS5wMi5DbG9zZWRSBmNvbG9ycxIuCgZsZWF2ZXMYFyADKAsyFi5maXh0dXJlcy53aXJlLnAyLkxlYWZSBmxlYXZlcxIUCgVuYW1lcxgYIAMoCVIFbmFtZXMSNQoFYnlfaWQYGSADKAsyIC5maXh0dXJlcy53aXJlLnAyLldpcmUuQnlJZEVudHJ5UgRieUlkEj4KCGJ5X2NvbG9yGBogAygLMiMuZml4dHVyZXMud2lyZS5wMi5XaXJlLkJ5Q29sb3JFbnRyeVIHYnlDb2xvchIbCghwaWNrX3N0chgbIAEoCUgAUgdwaWNrU3RyEhsKCHBpY2tfaTY0GBwgASgDSABSB3BpY2tJNjQSNQoJcGlja19sZWFmGB0gASgLMhYuZml4dHVyZXMud2lyZS5wMi5MZWFmSABSCHBpY2tMZWFmEh0KCGRmbHRfaW50GB4gASgFOgI0MlIHZGZsdEludBIfCghkZmx0X3N0chgfIAEoCToEZGZsdFIHZGZsdFN0chI/CglkZmx0X2VudW0YICABKA4yGC5maXh0dXJlcy53aXJlLnAyLkNsb3NlZDoIQ0xPU0VEX0JSCGRmbHRFbnVtEiwKA2dycBghIAEoCjIaLmZpeHR1cmVzLndpcmUucDIuV2lyZS5HcnBSA2dycBIvCgRncnBzGCIgAygKMhsuZml4dHVyZXMud2lyZS5wMi5XaXJlLkdycHNSBGdycHMSJwoPc2VyaWFsaXplZF9zaXplGCMgASgFUg5zZXJpYWxpemVkU2l6ZRIUCgVjbGFzcxgkIAEoCVIFY2xhc3MSMwoHYWxpYXNlZBglIAEoDjIZLmZpeHR1cmVzLndpcmUucDIuQWxpYXNlZFIHYWxpYXNlZBITCgRoaWdoGP8PIAEoCVIEaGlnaBIWCgRodWdlGP////8BIAEoBVIEaHVnZRpPCglCeUlkRW50cnkSEAoDa2V5GAEgASgFUgNrZXkSLAoFdmFsdWUYAiABKAsyFi5maXh0dXJlcy53aXJlLnAyLkxlYWZSBXZhbHVlOgI4ARpUCgxCeUNvbG9yRW50cnkSEAoDa2V5GAEgASgJUgNrZXkSLgoFdmFsdWUYAiABKA4yGC5maXh0dXJlcy53aXJlLnAyLkNsb3NlZFIFdmFsdWU6AjgBGhkKA0dycBISCgRub3RlGAEgASgJUgRub3RlGhQKBEdycHMSDAoBbhgBIAEoBVIBbkIGCgRwaWNrIigKCFJlcXVpcmVkEg4KAmlkGAEgAigJUgJpZBIMCgFuGAIgASgFUgFuKjwKBkNsb3NlZBIWChJDTE9TRURfVU5TUEVDSUZJRUQQABIMCghDTE9TRURfQRABEgwKCENMT1NFRF9CEAIqSgoHQWxpYXNlZBIQCgxBTElBU0VEX1pFUk8QABIRCg1BTElBU0VEX0ZJUlNUEAESFgoSQUxJQVNFRF9BTFNPX0ZJUlNUEAEaAhABQh0KGWNvbS5hY21lLmZpeHR1cmVzLndpcmUucDJQAQ==")
 
 (def file-descriptor
   (rt/file-descriptor descriptor-b64
@@ -42,7 +42,7 @@
     (codec/get-field msg Leaf--id opts)
     )))
 
-(defrecord Wire [i32 i64 u32 u64 s32 s64 f32 f64 sf32 sf64 flt dbl flag str raw color leaf unpacked packed packed-s64 packed-dbl colors leaves names by-id by-color pick-str pick-i64 pick-leaf dflt-int dflt-str dflt-enum grp grps high huge])
+(defrecord Wire [i32 i64 u32 u64 s32 s64 f32 f64 sf32 sf64 flt dbl flag str raw color leaf unpacked packed packed-s64 packed-dbl colors leaves names by-id by-color pick-str pick-i64 pick-leaf dflt-int dflt-str dflt-enum grp grps serialized-size class aliased high huge])
 (def Wire-prototype (rt/message file-descriptor "Wire" "com.acme.fixtures.wire.p2.Wire"))
 (def ^:private Wire--i32 (rt/field Wire-prototype "i32"))
 (def ^:private Wire--i64 (rt/field Wire-prototype "i64"))
@@ -78,6 +78,9 @@
 (def ^:private Wire--dflt-enum (rt/field Wire-prototype "dflt_enum"))
 (def ^:private Wire--grp (rt/field Wire-prototype "grp"))
 (def ^:private Wire--grps (rt/field Wire-prototype "grps"))
+(def ^:private Wire--serialized-size (rt/field Wire-prototype "serialized_size"))
+(def ^:private Wire--class (rt/field Wire-prototype "class"))
+(def ^:private Wire--aliased (rt/field Wire-prototype "aliased"))
 (def ^:private Wire--high (rt/field Wire-prototype "high"))
 (def ^:private Wire--huge (rt/field Wire-prototype "huge"))
 (defn Wire->proto
@@ -120,6 +123,9 @@
      (codec/set-field! b Wire--dflt-enum (:dflt-enum m) opts)
      (codec/set-field! b Wire--grp (:grp m) opts)
      (codec/set-field! b Wire--grps (:grps m) opts)
+     (codec/set-field! b Wire--serialized-size (:serialized-size m) opts)
+     (codec/set-field! b Wire--class (:class m) opts)
+     (codec/set-field! b Wire--aliased (:aliased m) opts)
      (codec/set-field! b Wire--high (:high m) opts)
      (codec/set-field! b Wire--huge (:huge m) opts)
      (.build b))))
@@ -162,6 +168,9 @@
     (codec/get-field msg Wire--dflt-enum opts)
     (codec/get-field msg Wire--grp opts)
     (codec/get-field msg Wire--grps opts)
+    (codec/get-field msg Wire--serialized-size opts)
+    (codec/get-field msg Wire--class opts)
+    (codec/get-field msg Wire--aliased opts)
     (codec/get-field msg Wire--high opts)
     (codec/get-field msg Wire--huge opts)
     )))

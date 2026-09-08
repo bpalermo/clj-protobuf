@@ -19,17 +19,37 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private forbidden-suffixes
+  "Accessor suffixes protoc refuses to generate bare, because they would
+  collide with a method on java.lang.Object or on the Message interfaces;
+  protoc appends `_` to each, so a field named `class` is read with
+  getClass_(). From compiler/java/names.cc, whose IsForbidden compares
+  exactly what UnderscoresToCamelCase produced.
+
+  Precision IS load-bearing here, contrary to the note below, for the one
+  case where the wrong name resolves instead of failing: a field named
+  serialized_size derives getSerializedSize, which exists on every message
+  and returns an int, so findVirtual matches and the invoker returns the
+  message's serialized size in place of the field. Same shape for the rest
+  of this set. Deriving the same names protoc generates is the fix; the
+  suffix is shared with the emitter, which needs it for the same reason."
+  #{"Class" "DefaultInstanceForType" "ParserForType" "SerializedSize"
+    "AllFields" "DescriptorForType" "InitializationErrorString" "UnknownFields"
+    "CachedSize"})
+
 (defn accessor-suffix
   "protoc's UnderscoresToCamelCase for accessor names: drop underscores,
   capitalise the letter after an underscore or digit, preserve existing case
   elsewhere. repeat_count -> RepeatCount, f10 -> F10, camelCaseField ->
-  CamelCaseField. Precision is not load-bearing — a miss just fails
-  findVirtual and the field stays on the reflection path."
+  CamelCaseField, with protoc's trailing underscore on the forbidden set
+  above. A miss elsewhere just fails findVirtual and the field stays on the
+  reflection path."
   ^String [^String s]
   (let [sb (StringBuilder. (.length s))]
     (loop [i 0 cap? true]
       (if (= i (.length s))
-        (.toString sb)
+        (let [out (.toString sb)]
+          (if (contains? forbidden-suffixes out) (str out "_") out))
         (let [c (.charAt s i)]
           (cond
             (= c \_)
