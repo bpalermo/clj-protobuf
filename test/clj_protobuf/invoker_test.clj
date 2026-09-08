@@ -9,7 +9,8 @@
             [clj-protobuf.impl.invoke :as invoke]
             [clj-protobuf.runtime :as rt]
             [fixtures.e2024.kitchen :as e2024]
-            [fixtures.p2.kitchen :as p2]))
+            [fixtures.p2.kitchen :as p2]
+            [fixtures.wire.p2 :as wp2]))
 
 (deftest accessor-suffix-rules
   (is (= "RepeatCount" (invoke/accessor-suffix "repeat_count")))
@@ -149,3 +150,19 @@
   (testing "a DynamicMessage built the old way is re-resolved onto the generated class"
     (is (instance? com.acme.fixtures.e2024.Kitchen
                    (rt/prototype (rt/dynamic-message e2024/file-descriptor "Kitchen"))))))
+
+(deftest forbidden-accessor-names-never-resolve-to-the-messages-own-methods
+  (testing "protoc appends an underscore where an accessor would shadow a method
+            every message has, and so must anything deriving accessor names:
+            getSerializedSize exists, returns an int, and would answer with the
+            message's own size instead of the field"
+    (is (= "SerializedSize_" (invoke/accessor-suffix "serialized_size")))
+    (is (= "Class_" (invoke/accessor-suffix "class")))
+    (is (= "RepeatCount" (invoke/accessor-suffix "repeat_count")) "everything else is unchanged")
+    (let [h (rt/field wp2/Wire-prototype "serialized_size")
+          msg (wp2/Wire->proto {:serialized-size 7 :str (apply str (repeat 40 "x"))})]
+      (is (some? (:get-invoker h)) "the underscored accessor resolves")
+      (is (not= 7 (.getSerializedSize ^com.google.protobuf.Message msg))
+          "the field value and the message size differ, so a wrong read shows")
+      (is (= 7 (codec/get-field msg h nil)))
+      (is (= "x" (codec/get-field (wp2/Wire->proto {:class "x"}) (rt/field wp2/Wire-prototype "class") nil))))))
