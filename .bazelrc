@@ -10,3 +10,16 @@ build --tool_java_runtime_version=remotejdk_21
 
 test --test_output=errors
 test --verbose_failures
+
+# MODULE.bazel.lock must be committed up to date, not silently regenerated.
+#
+# Off by default, and only ever passed by the leg running the version in
+# .bazelversion: the lockfile has a format version (28, as written by Bazel
+# 9.2) that older majors cannot read at all — Bazel 8.6 refuses it outright
+# under this mode, and under the default `update` mode quietly rewrites it in
+# its own sandbox, which is exactly how a stale lock reached main once. So the
+# pinned version is the source of truth for the committed file and the one
+# that enforces it; the 8.6 leg stays a compatibility check.
+#
+#   bazel test --config=strict-lockfile //...
+common:strict-lockfile --lockfile_mode=error

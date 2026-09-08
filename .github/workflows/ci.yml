@@ -43,6 +43,13 @@ jobs:
       - name: bazel test //...
         run: bazel test //...
 
+      # Only on the version .bazelversion pins: that is the one whose lockfile
+      # format the committed MODULE.bazel.lock is in, and the only one that can
+      # judge whether it is up to date. Cheap — everything is already built.
+      - name: MODULE.bazel.lock is up to date
+        if: matrix.bazel == '9.2.0'
+        run: bazel build --config=strict-lockfile //src:clj_protobuf
+
       # Not covered by the line above: `bazel test` builds test targets and what
       # they need, and nothing needs the published artifact. Building it here is
       # what makes a malformed pom a pull-request failure rather than something
