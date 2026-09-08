@@ -71,6 +71,18 @@ the latter). A DynamicMessage passed in is re-resolved, so a library that
 built one before 0.2.0 wraps that call and changes nothing else. The wire is
 where pools meet; field access is where they must not.
 
+The consequence for generated code, worth stating because it is easy to
+assume otherwise: `proto->X` and `X->proto` read and write **their own
+arm's** messages and no other. Their field handles are built on their own
+prototype — on a hinted namespace those carry invokers over the generated
+class's accessors, and even without invokers a handle's `FieldDescriptor`
+belongs to that prototype's pool. Handing `proto->X` a message from another
+arm throws rather than decoding, and an opts value does not rescue it, since
+the codec path uses the same handles. With `interop=true` the `nil`-opts
+guard chooses between the typed and codec paths; it does not make the fn
+polymorphic over arms. Move values between arms through the wire, which is
+what the bytes are for.
+
 ## The compiled codec
 
 Before 0.2.0 the arm without generated classes was DynamicMessage, and a
