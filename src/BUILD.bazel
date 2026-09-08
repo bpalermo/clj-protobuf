@@ -12,6 +12,7 @@ clj_library(
         "clj_protobuf/**/*.clj",
         "clj_grpc/**/*.clj",
     ]),
+    direct_linking = "on",
     namespaces = [
         "clj-protobuf.impl.naming",
         "clj-protobuf.impl.invoke",

@@ -96,6 +96,16 @@ JSON:
 | map-heavy | — | 13.73 µs / 13048 B | 11.52 µs / 10032 B | 10.11 µs / 5736 B | 15.18 µs / 22248 B |
 | enum-heavy | — | 1.99 µs / 1056 B | 1.87 µs / 856 B | 2.22 µs / 2840 B | 2.69 µs / 7200 B |
 
+One more lever, measured on a real gRPC service rather than here: this jar
+ships as source, so Clojure compiles these namespaces when they load, and
+`-Dclojure.compiler.direct-linking=true` on the JVM turns every call between
+them into a static call. On a 1-CPU gRPC server echoing 1 KB messages that
+was worth 5–17% of CPU per request depending on shape and rate, and removed a
+load-shedding cliff at the top of the ramp. The property is process-wide and
+changes late binding for everything loaded from source — `with-redefs` on a
+linked call site stops taking effect — so turn it on deliberately, in
+production images rather than at the REPL.
+
 Read it honestly: the hinted arm sits ~2× off protoc's own generated code on
 small messages and the compiled arm within ~1.3× of the hinted one — and on
 decode the compiled arm is the faster of the two on most shapes, a slot read
