@@ -19,7 +19,7 @@ module(
 # THIS repo's tests and bench: the Clojars jar is source-only, so what a
 # consumer gets depends on the consumer's build or on
 # -Dclojure.compiler.direct-linking=true at runtime.
-bazel_dep(name = "rules_clj", version = "0.2.4")
+bazel_dep(name = "rules_clj", version = "0.2.5")
 
 # Dependencies come from deps.edn, resolved once into the committed lockfile by
 # rules_clj's //tools/lock, fetched by digest at build time.

@@ -106,6 +106,14 @@ changes late binding for everything loaded from source — `with-redefs` on a
 linked call site stops taking effect — so turn it on deliberately, in
 production images rather than at the REPL.
 
+A Bazel consumer has a second route: from rules_clj 0.2.5 a source-only
+dependency's namespaces can be compiled in the consumer's own build, which
+is what lets a direct-linked target call into a library published as source.
+That is rules_clj's mechanism rather than this library's, and its docs are
+the place to read it; the jar published here stays source either way, so
+that generated records and call sites specialize against the Clojure and
+protobuf-java versions the consumer actually builds with.
+
 Read it honestly: the hinted arm sits ~2× off protoc's own generated code on
 small messages and the compiled arm within ~1.3× of the hinted one — and on
 decode the compiled arm is the faster of the two on most shapes, a slot read
