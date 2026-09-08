@@ -18,7 +18,7 @@
 
 ;; ---------------------------------------------------------------
 ;; messages
-(declare Nested->proto Delimited->proto Kitchen->proto NestedInFileClass->proto)
+(declare Nested->proto Delimited->proto Kitchen->proto NestedInFileClass->proto proto->Nested--map)
 ;;
 ;; The shape is known at codegen time, so the representation is too:
 ;; a defrecord per type, its FieldDescriptors resolved once into
@@ -45,9 +45,22 @@
   "protobuf -> a Nested record. Absent fields are nil."
   ([msg] (proto->Nested msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->Nested
-    (codec/get-field msg Nested--id opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.e2024.Nested msg))
+     (let [^com.acme.fixtures.e2024.Nested m msg]
+       (->Nested
+        (when (.hasId m) (.getId m))
+        ))
+     (->Nested
+      (codec/get-field msg Nested--id opts)
+      ))))
+(defn- proto->Nested--map
+  "Nested as the plain map a nested field reads back as:
+  the same values, minus the keys the codec's read leaves out."
+  [^com.acme.fixtures.e2024.Nested m]
+  (let [id--v (when (.hasId m) (.getId m))]
+    (if (some? id--v)
+      {:id id--v}
+      {})))
 
 (defrecord Delimited [note])
 (def Delimited-prototype (rt/message file-descriptor "Delimited" "com.acme.fixtures.e2024.Delimited"))
@@ -68,9 +81,14 @@
   "protobuf -> a Delimited record. Absent fields are nil."
   ([msg] (proto->Delimited msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->Delimited
-    (codec/get-field msg Delimited--note opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.e2024.Delimited msg))
+     (let [^com.acme.fixtures.e2024.Delimited m msg]
+       (->Delimited
+        (when (.hasNote m) (.getNote m))
+        ))
+     (->Delimited
+      (codec/get-field msg Delimited--note opts)
+      ))))
 
 (defrecord Kitchen [str-field int-field bool-field bytes-field dbl-field long-field enum-field msg-field tags children counts choice-str choice-int choice-msg ts dur wrapped implicit-field delimited])
 (def Kitchen-prototype (rt/message file-descriptor "Kitchen" "com.acme.fixtures.e2024.Kitchen"))
@@ -145,27 +163,50 @@
   "protobuf -> a Kitchen record. Absent fields are nil."
   ([msg] (proto->Kitchen msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->Kitchen
-    (codec/get-field msg Kitchen--str-field opts)
-    (codec/get-field msg Kitchen--int-field opts)
-    (codec/get-field msg Kitchen--bool-field opts)
-    (codec/get-field msg Kitchen--bytes-field opts)
-    (codec/get-field msg Kitchen--dbl-field opts)
-    (codec/get-field msg Kitchen--long-field opts)
-    (codec/get-field msg Kitchen--enum-field opts)
-    (codec/get-field msg Kitchen--msg-field opts)
-    (codec/get-field msg Kitchen--tags opts)
-    (codec/get-field msg Kitchen--children opts)
-    (codec/get-field msg Kitchen--counts opts)
-    (codec/get-field msg Kitchen--choice-str opts)
-    (codec/get-field msg Kitchen--choice-int opts)
-    (codec/get-field msg Kitchen--choice-msg opts)
-    (codec/get-field msg Kitchen--ts opts)
-    (codec/get-field msg Kitchen--dur opts)
-    (codec/get-field msg Kitchen--wrapped opts)
-    (codec/get-field msg Kitchen--implicit-field opts)
-    (codec/get-field msg Kitchen--delimited opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.e2024.Kitchen msg))
+     (let [^com.acme.fixtures.e2024.Kitchen m msg]
+       (->Kitchen
+        (when (.hasStrField m) (.getStrField m))
+        (when (.hasIntField m) (.getIntField m))
+        (when (.hasBoolField m) (.getBoolField m))
+        (when (.hasBytesField m) (.toByteArray (.getBytesField m)))
+        (when (.hasDblField m) (.getDblField m))
+        (when (.hasLongField m) (.getLongField m))
+        (when (.hasEnumField m) (case (.getEnumFieldValue m) 0 :COLOR_UNSPECIFIED 1 :COLOR_RED 2 :COLOR_BLUE (codec/get-field m Kitchen--enum-field nil)))
+        (when (.hasMsgField m) (proto->Nested--map (.getMsgField m)))
+        (let [l (.getTagsList m)] (when-not (.isEmpty l) (vec l)))
+        (let [l (.getChildrenList m)] (when-not (.isEmpty l) (persistent! (reduce (fn [acc v] (conj! acc (proto->Nested--map v))) (transient []) l))))
+        (let [jm (.getCountsMap m)] (when-not (.isEmpty jm) (persistent! (reduce (fn [acc ^java.util.Map$Entry e] (assoc! acc (.getKey e) (.getValue e))) (transient {}) (.entrySet jm)))))
+        (when (.hasChoiceStr m) (.getChoiceStr m))
+        (when (.hasChoiceInt m) (.getChoiceInt m))
+        (when (.hasChoiceMsg m) (proto->Nested--map (.getChoiceMsg m)))
+        (codec/get-field m Kitchen--ts nil)
+        (codec/get-field m Kitchen--dur nil)
+        (codec/get-field m Kitchen--wrapped nil)
+        (.getImplicitField m)
+        (codec/get-field m Kitchen--delimited nil)
+        ))
+     (->Kitchen
+      (codec/get-field msg Kitchen--str-field opts)
+      (codec/get-field msg Kitchen--int-field opts)
+      (codec/get-field msg Kitchen--bool-field opts)
+      (codec/get-field msg Kitchen--bytes-field opts)
+      (codec/get-field msg Kitchen--dbl-field opts)
+      (codec/get-field msg Kitchen--long-field opts)
+      (codec/get-field msg Kitchen--enum-field opts)
+      (codec/get-field msg Kitchen--msg-field opts)
+      (codec/get-field msg Kitchen--tags opts)
+      (codec/get-field msg Kitchen--children opts)
+      (codec/get-field msg Kitchen--counts opts)
+      (codec/get-field msg Kitchen--choice-str opts)
+      (codec/get-field msg Kitchen--choice-int opts)
+      (codec/get-field msg Kitchen--choice-msg opts)
+      (codec/get-field msg Kitchen--ts opts)
+      (codec/get-field msg Kitchen--dur opts)
+      (codec/get-field msg Kitchen--wrapped opts)
+      (codec/get-field msg Kitchen--implicit-field opts)
+      (codec/get-field msg Kitchen--delimited opts)
+      ))))
 
 (defrecord NestedInFileClass [id])
 (def NestedInFileClass-prototype (rt/message file-descriptor "NestedInFileClass" "com.acme.fixtures.e2024.KitchenProto$NestedInFileClass"))
@@ -186,6 +227,11 @@
   "protobuf -> a NestedInFileClass record. Absent fields are nil."
   ([msg] (proto->NestedInFileClass msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (->NestedInFileClass
-    (codec/get-field msg NestedInFileClass--id opts)
-    )))
+   (if (and (nil? opts) (instance? com.acme.fixtures.e2024.KitchenProto$NestedInFileClass msg))
+     (let [^com.acme.fixtures.e2024.KitchenProto$NestedInFileClass m msg]
+       (->NestedInFileClass
+        (when (.hasId m) (.getId m))
+        ))
+     (->NestedInFileClass
+      (codec/get-field msg NestedInFileClass--id opts)
+      ))))
