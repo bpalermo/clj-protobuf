@@ -10,6 +10,7 @@ clj_library(
     deps = [
         "//src:clj_protobuf",
         "//test:fixtures",
+        "//test:fixtures_interop",
         "//test:fixtures_nohint",
         # On the classpath so the hinted fixtures' class hints resolve, and for
         # the raw protobuf-java arm.

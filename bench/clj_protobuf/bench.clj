@@ -1,5 +1,5 @@
 (ns clj-protobuf.bench
-  "The representation benchmark: protobuf through clj-protobuf (both arms)
+  "The representation benchmark: protobuf through clj-protobuf (every arm)
   against protoc's own generated Java code and against JSON.
 
   Real payloads differ enormously in shape and the trade-offs do not behave the
@@ -11,6 +11,10 @@
     :hinted   generated code + clj-protobuf, Java-class hints resolving
               (fixtures.bench.shapes with //test/proto:fixtures_java_proto on
               the classpath)
+    :interop  the same shapes emitted with interop=true (plugin 0.6.0+,
+              interop.fixtures.bench.shapes) — the same prototypes as :hinted
+              driven through direct Java accessor calls instead of the codec,
+              so the two columns differ only in emitted code.
     :compiled the same generated code with hints that cannot resolve
               (fixtures.bench-nohint.shapes) — the compiled codec, what any
               consumer without the generated classes gets. Run with
@@ -31,10 +35,14 @@
             [criterium.core :as crit]
             [fixtures.bench.shapes :as hinted]
             [fixtures.bench-nohint.shapes :as dynamic]
+            [interop.fixtures.bench.shapes :as interop]
             [jsonista.core :as j])
   (:import [com.acme.fixtures.bench Flat RepeatedMessages Tiny]
            [com.google.protobuf Message]
            [java.lang.management ManagementFactory]))
+
+;; A reflective call inside an arm is not a slow arm, it is a wrong number.
+(set! *warn-on-reflection* true)
 
 ;; ---------------------------------------------------------------------------
 ;; Corpus
@@ -132,8 +140,10 @@
 (defn- encode-arms [{:keys [shape to]}]
   (let [value      (values shape)
         hinted-to  (resolve-in 'fixtures.bench.shapes to)
+        interop-to (resolve-in 'interop.fixtures.bench.shapes to)
         dynamic-to (resolve-in 'fixtures.bench-nohint.shapes to)]
     (cond-> {:hinted    #(pb/encode ^Message (hinted-to value))
+             :interop   #(pb/encode ^Message (interop-to value))
              :compiled  #(pb/encode ^Message (dynamic-to value))
              :jsonista  #(j/write-value-as-bytes value mapper)
              :data-json #(data-json/write-str value)}
@@ -147,9 +157,12 @@
         json-str     (data-json/write-str value)
         hinted-proto  (resolve-in 'fixtures.bench.shapes proto)
         hinted-from   (resolve-in 'fixtures.bench.shapes from)
+        interop-proto (resolve-in 'interop.fixtures.bench.shapes proto)
+        interop-from  (resolve-in 'interop.fixtures.bench.shapes from)
         dynamic-proto (resolve-in 'fixtures.bench-nohint.shapes proto)
         dynamic-from  (resolve-in 'fixtures.bench-nohint.shapes from)]
     (cond-> {:hinted    #(hinted-from (pb/decode hinted-proto bytes))
+             :interop   #(interop-from (pb/decode interop-proto bytes))
              :compiled  #(dynamic-from (pb/decode dynamic-proto bytes))
              :jsonista  #(j/read-value ^bytes json-bytes mapper)
              :data-json #(data-json/read-str json-str :key-fn keyword)}
@@ -159,7 +172,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Report
 
-(def arm-order [:java :hinted :compiled :jsonista :data-json])
+(def arm-order [:java :hinted :interop :compiled :jsonista :data-json])
 
 (defn- fmt-ns [ns] (cond (nil? ns) "—"
                          (< ns 1000) (format "%.0f ns" ns)
@@ -190,7 +203,7 @@
 (defn -main [& args]
   (when (some #{"quick"} args) (reset! quick? true))
   (println "clj-protobuf representation benchmark")
-  (println "arms: java = protoc's generated builders; hinted/compiled = clj-protobuf;")
+  (println "arms: java = protoc's generated builders; hinted/interop/compiled = clj-protobuf;")
   (println "      jsonista/data.json = the same value as JSON. mean latency / allocated bytes per op.")
   (let [encode (run-op "encode" encode-arms)
         decode (run-op "decode" decode-arms)]
