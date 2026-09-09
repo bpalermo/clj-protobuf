@@ -80,7 +80,9 @@
             ^long dense              ; table size when indexed by tag directly, else 0
             ^objects oneof-slots     ; int[] of slots per real oneof
             ^ints required-slots
-            needs-unknown?])         ; a reader routes into unknown fields (closed enums)
+            needs-unknown?          ; a reader routes into unknown fields (closed enums)
+            required-somewhere      ; delay: has this type a required field in its closure?
+            parser])                ; delay: the Parser for this type, from parser-of
 
 ;; ---------------------------------------------------------------------------
 ;; Per-field analysis
@@ -220,13 +222,46 @@
 ;; ---------------------------------------------------------------------------
 ;; The type
 
+;; Required fields, recursively: types with none in their transitive closure —
+;; every proto3 and editions-default message — let the initialization check
+;; skip the walk entirely. The answer is a pure function of the type graph, so
+;; each type memoizes its own in a delay field rather than a shared map.
+;;
+;; The `visiting` set is load-bearing and cannot be replaced by the delays: on
+;; a cyclic descriptor a delay whose body forced a sibling's delay, which
+;; forced back, would re-enter its own monitor on the same thread, never see
+;; its fn cleared, and recurse to a StackOverflowError. So this walks the
+;; graph by plain recursion and never derefs another type's memo.
+(defn- required-of [^CompiledType t visiting]
+  (if (contains? visiting t)
+    false
+    (let [visiting (conj visiting t)
+          ^objects fields (.-fields t)]
+      (boolean
+       (or (pos? (alength ^ints (.-required-slots t)))
+           (some (fn [^CompiledField f]
+                   (and (.-nested f) (required-of (deref (.-nested f)) visiting)))
+                 fields))))))
+
+(defn- nested-parser-ref
+  "An IDeref of the nested type's own Parser. Two derefs rather than one
+  because descriptors are cyclic — the nested CompiledType may not exist when
+  this reader is built — and because the parser belongs to the type, so every
+  edge into it shares the one instance."
+  [^CompiledField f]
+  (reify clojure.lang.IDeref
+    (deref [_] (deref (.-parser ^CompiledType (deref (.-nested f)))))))
+
 (def ^:private dense-limit 4096)
 
 (defn- compile-type
   "nested-of: Descriptor -> IDeref of its CompiledType. parser-of:
   IDeref-of-CompiledType -> IDeref of its Parser."
   ^CompiledType [^Descriptors$Descriptor d nested-of parser-of]
-  (let [oneofs (.getRealOneofs d)
+  (let [;; the type has to be able to reach itself: its parser is built from
+        ;; it, and its required-field answer is computed over it
+        self (promise)
+        oneofs (.getRealOneofs d)
         oneof-index (into {} (map-indexed (fn [i oo] [oo i])) oneofs)
         fields (mapv #(compile-field % oneof-index nested-of) (.getFields d))
         by-slot (object-array (count fields))
@@ -235,7 +270,7 @@
         entries (into []
                       (mapcat (fn [^CompiledField f]
                                 (map (fn [[tag r]] [tag (.-slot f) r (.-oneof f)])
-                                     (field-readers f (fn [^CompiledField f] (parser-of (.-nested f)))))))
+                                     (field-readers f nested-parser-ref))))
                       fields)
         tags (mapv first entries)
         dense? (and (seq tags) (every? #(< -1 % dense-limit) tags))
@@ -243,30 +278,34 @@
         sorted (if dense? entries (sort-by first entries))
         tag-slots (int-array size -1)
         tag-readers (object-array size)
-        tag-oneofs (int-array size -1)]
-    (doseq [[i [tag slot r oneof]] (map-indexed vector sorted)
-            :let [pos (if dense? (long tag) (long i))]]
-      (aset tag-slots pos (int slot))
-      (aset tag-readers pos r)
-      (aset tag-oneofs pos (int oneof)))
-    (map->CompiledType
-     {:descriptor d
-      :fields by-slot
-      :writers writers
-      :tags (when-not dense? (int-array (map first sorted)))
-      :tag-slots tag-slots
-      :tag-readers tag-readers
-      :tag-oneofs tag-oneofs
-      :dense (long (if dense? size 0))
-      :oneof-slots (object-array
-                    (map (fn [^Descriptors$OneofDescriptor oo]
-                           (int-array (map (fn [^Descriptors$FieldDescriptor fd] (.getIndex fd)) (.getFields oo))))
-                         oneofs))
-      :required-slots (int-array (keep (fn [^CompiledField f] (when (.-required? f) (.-slot f))) fields))
-      :needs-unknown? (boolean (some (fn [^CompiledField f]
-                                       (or (some-> ^Descriptors$EnumDescriptor (.-enum-type f) .isClosed)
-                                           (some-> ^Descriptors$EnumDescriptor (.-val-enum-type f) .isClosed)))
-                                     fields))})))
+        tag-oneofs (int-array size -1)
+        _ (doseq [[i [tag slot r oneof]] (map-indexed vector sorted)
+                  :let [pos (if dense? (long tag) (long i))]]
+            (aset tag-slots pos (int slot))
+            (aset tag-readers pos r)
+            (aset tag-oneofs pos (int oneof)))
+        t (map->CompiledType
+           {:descriptor d
+            :fields by-slot
+            :writers writers
+            :tags (when-not dense? (int-array (map first sorted)))
+            :tag-slots tag-slots
+            :tag-readers tag-readers
+            :tag-oneofs tag-oneofs
+            :dense (long (if dense? size 0))
+            :oneof-slots (object-array
+                          (map (fn [^Descriptors$OneofDescriptor oo]
+                                 (int-array (map (fn [^Descriptors$FieldDescriptor fd] (.getIndex fd)) (.getFields oo))))
+                               oneofs))
+            :required-slots (int-array (keep (fn [^CompiledField f] (when (.-required? f) (.-slot f))) fields))
+            :needs-unknown? (boolean (some (fn [^CompiledField f]
+                                             (or (some-> ^Descriptors$EnumDescriptor (.-enum-type f) .isClosed)
+                                                 (some-> ^Descriptors$EnumDescriptor (.-val-enum-type f) .isClosed)))
+                                           fields))
+            :required-somewhere (delay (required-of @self #{}))
+            :parser (parser-of self)})]
+    (deliver self t)
+    t))
 
 (defn compiler
   "A compile function with its own cache, keyed by Descriptor identity.

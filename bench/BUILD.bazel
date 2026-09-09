@@ -33,6 +33,32 @@ clj_binary(
     deps = [":bench_lib"],
 )
 
+# The thread-scaling probe. manual for the same reason //bench:run is, and
+# deliberately not a test: a scaling assertion on a loaded CI machine is a
+# flake generator. What keeps it honest is that smoke_test_lib depends on it,
+# so it compiles on every bazel test //... and cannot rot.
+clj_library(
+    name = "contention_lib",
+    srcs = ["clj_protobuf/contention.clj"],
+    namespaces = ["clj-protobuf.contention"],
+    strip_prefix = "bench",
+    deps = [
+        "//src:clj_protobuf",
+        "//test:fixtures",
+        "//test:fixtures_nohint",
+        "//test/proto:fixtures_java_proto",
+        "@deps//:com_google_protobuf_protobuf_java",
+        "@deps//:org_clojure_clojure",
+    ],
+)
+
+clj_binary(
+    name = "contention",
+    main = "clj-protobuf.contention",
+    tags = ["manual"],
+    deps = [":contention_lib"],
+)
+
 clj_library(
     name = "smoke_test_lib",
     srcs = ["clj_protobuf/bench_smoke_test.clj"],
@@ -40,6 +66,7 @@ clj_library(
     strip_prefix = "bench",
     deps = [
         ":bench_lib",
+        ":contention_lib",
         "//src:clj_protobuf",
         "@deps//:com_google_protobuf_protobuf_java",
         "@deps//:org_clojure_clojure",
