@@ -23,6 +23,12 @@
             [fixtures.wire.p3 :as wp3])
   (:import [com.google.protobuf
             ByteString
+            DescriptorProtos$DescriptorProto
+            DescriptorProtos$FieldDescriptorProto
+            DescriptorProtos$FieldDescriptorProto$Label
+            DescriptorProtos$FieldDescriptorProto$Type
+            DescriptorProtos$FileDescriptorProto
+            Descriptors$FileDescriptor
             CodedInputStream
             CodedOutputStream
             Descriptors$Descriptor
@@ -331,6 +337,61 @@
         (testing "and core/decode reports it as a parse error"
           (is (= :parse (try (pb/decode proto partial-bytes) nil
                              (catch clojure.lang.ExceptionInfo e (:clj-protobuf/error (ex-data e)))))))))))
+
+(deftest required-fields-through-a-cycle
+  ;; A -> B (field 1) and A -> C (field 2); B -> A; C holds the required
+  ;; field. Walking A reaches B FIRST, and B's only edge is back to A, which
+  ;; the visiting set cuts to false — before A goes on to reach C and answer
+  ;; true for itself.
+  ;;
+  ;; Until 0.2.5 the walk shared one process-wide memo consulted at every
+  ;; level, so that cut answer was cached AS B's answer: B reported no
+  ;; required field anywhere in its closure, initialized? skipped the check on
+  ;; that basis, and a B carrying an uninitialized C built without complaint.
+  ;; Each type now computes its own answer from its own visiting set and never
+  ;; reads another type's memo, which is what makes the cut local to the walk
+  ;; that made it.
+  ;;
+  ;; Built from a descriptor here rather than a fixture: it is the runtime's
+  ;; handling of a cyclic descriptor under test, not anything the emitter
+  ;; produces.
+  (let [fld (fn [nm num label type type-name]
+              (let [b (doto (DescriptorProtos$FieldDescriptorProto/newBuilder)
+                        (.setName nm) (.setNumber (int num)) (.setLabel label) (.setType type))]
+                (when type-name (.setTypeName b ^String type-name))
+                (.build b)))
+        msg (fn [nm fields]
+              (let [b (doto (DescriptorProtos$DescriptorProto/newBuilder) (.setName nm))]
+                (doseq [f fields] (.addField b ^DescriptorProtos$FieldDescriptorProto f))
+                (.build b)))
+        opt DescriptorProtos$FieldDescriptorProto$Label/LABEL_OPTIONAL
+        req DescriptorProtos$FieldDescriptorProto$Label/LABEL_REQUIRED
+        mty DescriptorProtos$FieldDescriptorProto$Type/TYPE_MESSAGE
+        sty DescriptorProtos$FieldDescriptorProto$Type/TYPE_STRING
+        fdp (-> (DescriptorProtos$FileDescriptorProto/newBuilder)
+                (.setName "cycle.proto") (.setPackage "cyc") (.setSyntax "proto2")
+                (.addMessageType (msg "A" [(fld "b" 1 opt mty ".cyc.B") (fld "c" 2 opt mty ".cyc.C")]))
+                (.addMessageType (msg "B" [(fld "a" 1 opt mty ".cyc.A")]))
+                (.addMessageType (msg "C" [(fld "id" 1 req sty nil)]))
+                (.build))
+        file (Descriptors$FileDescriptor/buildFrom fdp (into-array Descriptors$FileDescriptor []))
+        dsc (fn [nm] (.findMessageTypeByName file nm))
+        proto (fn [nm] (message/prototype (dsc nm)))]
+    ;; order matters: A must be walked first, which is what poisoned B
+    (is (true? (.isInitialized ^Message (.buildPartial (.newBuilderForType ^Message (proto "A")))))
+        "an empty A is initialized — nothing required is set")
+    (testing "a nested type reached through the cycle still knows it has required fields"
+      (let [c (.buildPartial (.newBuilderForType ^Message (proto "C")))
+            a (-> (.newBuilderForType ^Message (proto "A"))
+                  (.setField (.findFieldByName (dsc "A") "c") c)
+                  (.buildPartial))
+            bb (-> (.newBuilderForType ^Message (proto "B"))
+                   (.setField (.findFieldByName (dsc "B") "a") a))
+            b (.buildPartial bb)]
+        (is (not (.isInitialized ^Message c)) "C is missing its required id")
+        (is (not (.isInitialized ^Message b)) "so B, which reaches it, is uninitialized too")
+        (is (thrown? UninitializedMessageException (.build bb))
+            "and build refuses it rather than passing it on")))))
 
 (deftest parser-overloads-agree
   (let [proto (compiled wp3/Wire-prototype)

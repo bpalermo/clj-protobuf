@@ -55,4 +55,13 @@
 ;; 1->8 threads, 10.5x the throughput at eight, and 23% faster on one thread.
 ;; Anyone holding a compiled-vs-interop comparison from before this wants to
 ;; re-run it. //bench:contention is the probe.
+;;
+;; Found after the release, and fixed by it: the shared memo was also wrong on
+;; cyclic proto2 graphs. It cached a cycle-broken false as a nested type's own
+;; answer, so that type reported no required field anywhere in its closure,
+;; the initialization check skipped on that basis, and a message carrying an
+;; uninitialized sub-message built without complaint instead of throwing
+;; UninitializedMessageException. Per-type memos cannot do this, because the
+;; cut stays local to the walk that made it. Pinned by
+;; //test:message_test's required-fields-through-a-cycle.
 {:version "0.2.5"}
