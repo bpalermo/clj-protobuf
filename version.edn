@@ -40,4 +40,10 @@
 ;; method every message has (serialized_size -> getSerializedSize) read the
 ;; message's own size on the hinted arm; and aliased enum values read back as
 ;; different names on different arms.
-{:version "0.2.3"}
+;; 0.2.4: building a compiled message no longer copies its slot array. The
+;; message takes the array and the builder copies on its next write, which is
+;; 40 B less per message built — a quarter of the build-half allocation on a
+;; list of small messages. No behavioural change: what a built message holds
+;; is still untouchable through the builder that made it, and
+;; //test:message_test drives every mutator to pin it.
+{:version "0.2.4"}
