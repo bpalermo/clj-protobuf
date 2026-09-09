@@ -8,7 +8,7 @@ in, protoc's bytes out. Editions supported through **2024**.
 
 ```clojure
 ;; deps.edn
-com.github.bpalermo/clj-protobuf {:mvn/version "0.2.4"}
+com.github.bpalermo/clj-protobuf {:mvn/version "0.2.5"}
 ```
 
 ## What it is
@@ -159,14 +159,25 @@ output.
 Do not read the `interop` column as a CPU win, though — this is the clearest
 case in these tables of a microbenchmark not surviving contact with a whole
 request path. Measured on a real gRPC service rather than here, with
-everything else held constant, `interop=true` cost 3–8% *more* CPU per
-request on unary and was level on streaming, while returning 15–45% lower
-p50. The frames say why: the conversion work moves out of the codec and into
-protoc's generated accessors almost one for one, so the total barely changes
-and only its distribution does. It is a latency-for-CPU trade, and which
-side of it you want depends on whether you are short of headroom or short of
-milliseconds — on a CPU-bound pod the compiled codec is still the better
-default.
+everything else held constant, `interop=true` returns 15–45% lower p50
+because the conversion work moves out of the codec and into protoc's
+generated accessors almost one for one, so the total barely changes and only
+its distribution does.
+
+Its effect on *CPU* is the part worth reading carefully, because the honest
+answer is that it depends on core count and the published comparison was
+partly measuring a defect of ours. On a 1-CPU pod interop cost 3–8% more CPU
+per request. On two cores the sign flipped and it cost 10–14% less — on
+unchanged images, which is hard to explain by anything except contention,
+since contention cannot exist on one core. That contention was this
+library's, not protoc's: until 0.2.5 the compiled arm reached a process-wide
+monitor on every message built (see `//bench:contention`). Those two-core
+numbers are therefore a measurement of the compiled arm against a known
+defect, and the gap should narrow toward the 1–4% the single-core runs
+showed. That re-measurement has not been published yet, so treat the
+narrowing as expected rather than established, and if you are choosing today
+on a multi-core pod, measure your own shape on 0.2.5 rather than trusting
+either number.
 
 Every number above is single-threaded, and that is worth saying because it
 is a question these tables cannot answer. Both arms scale close to linearly

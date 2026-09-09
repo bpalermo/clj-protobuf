@@ -46,4 +46,13 @@
 ;; list of small messages. No behavioural change: what a built message holds
 ;; is still untouchable through the builder that made it, and
 ;; //test:message_test drives every mutator to pin it.
-{:version "0.2.4"}
+;; 0.2.5: no process-wide monitor on the per-message path. The required-field
+;; memo (reached from .build on every message, nested ones included) and the
+;; parser registry (reached on every decode) were Collections.synchronizedMaps,
+;; which lock on reads too, so a cache hit serialized every thread in the
+;; process against every other. Both are per-type facts and now live on the
+;; CompiledType as delays. Compiled-arm encode went from 0.99x to 8.48x across
+;; 1->8 threads, 10.5x the throughput at eight, and 23% faster on one thread.
+;; Anyone holding a compiled-vs-interop comparison from before this wants to
+;; re-run it. //bench:contention is the probe.
+{:version "0.2.5"}
