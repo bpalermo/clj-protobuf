@@ -201,6 +201,84 @@
         (is (= (.getMessageType (fd d "by-id")) (.getDescriptorForType entry-b)))
         (is (thrown? UnsupportedOperationException (.newBuilderForField b (fd d "i32"))))))))
 
+(deftest every-mutation-after-build-leaves-the-message-alone
+  ;; Building hands the slot array to the message instead of copying it, so
+  ;; a builder that has built owns nothing until it takes a copy. That copy
+  ;; happens in one place (ownSlots), and every mutating method has to go
+  ;; through it — one that does not would write through into a message
+  ;; someone already holds. This drives all of them.
+  (let [proto (compiled wp3/Wire-prototype)
+        d (desc proto)
+        populate (fn [^Message$Builder b]
+                   (doto b
+                     (.setField (fd d "i32") (int 5))
+                     (.setField (fd d "str") "s")
+                     (.setField (fd d "pick-str") "p")
+                     (.addRepeatedField (fd d "names") "a")
+                     (.addRepeatedField (fd d "names") "b")
+                     (.setField (fd d "leaf") (wp3/Leaf->proto {:id "x"}))))
+        other (.build ^Message$Builder (populate (.newBuilderForType proto)))
+        oneof (first (.getRealOneofs d))
+        entry (fn [k v]
+                (-> (DynamicMessage/newBuilder (.getMessageType (fd d "by-id")))
+                    (.setField (fd (.getMessageType (fd d "by-id")) "key") (int k))
+                    (.setField (fd (.getMessageType (fd d "by-id")) "value") (wp3/Leaf->proto {:id v}))
+                    (.build)))
+        mutations
+        {"setField"           #(.setField ^Message$Builder % (fd d "i32") (int 99))
+         "setField (oneof)"   #(.setField ^Message$Builder % (fd d "pick-i64") (long 7))
+         "clearField"         #(.clearField ^Message$Builder % (fd d "names"))
+         "clearOneof"         #(.clearOneof ^Message$Builder % oneof)
+         "setRepeatedField"   #(.setRepeatedField ^Message$Builder % (fd d "names") 0 "Z")
+         "addRepeatedField"   #(.addRepeatedField ^Message$Builder % (fd d "names") "c")
+         "addRepeatedField (map entry)" #(.addRepeatedField ^Message$Builder % (fd d "by-id") (entry 1 "m"))
+         "clear"              #(.clear ^Message$Builder %)
+         "mergeFrom(Message)" #(.mergeFrom ^Message$Builder % ^Message other)
+         "mergeFrom(bytes)"   #(.mergeFrom ^Message$Builder % ^bytes (.toByteArray other))
+         "mergeUnknownFields" #(.mergeUnknownFields ^Message$Builder % (.getUnknownFields other))
+         "setUnknownFields"   #(.setUnknownFields ^Message$Builder % (UnknownFieldSet/getDefaultInstance))
+         "set-slot! (codec)"  #(message/set-slot! % 0 (Integer/valueOf 99))}]
+    (doseq [[label mutate] mutations]
+      (testing label
+        (let [b (populate (.newBuilderForType proto))
+              m (.build ^Message$Builder b)
+              before (.toByteArray ^Message m)
+              names-before (.getField ^Message m (fd d "names"))]
+          (mutate b)
+          (is (java.util.Arrays/equals before (.toByteArray ^Message m))
+              "the built message still serializes to its own bytes")
+          (is (= names-before (.getField ^Message m (fd d "names")))
+              "and its collections were not appended to in place")
+          ;; and the mutation did land on the builder, so this is a copy and
+          ;; not a silently dropped write
+          (is (some? (.build ^Message$Builder b))))))
+    (testing "through clone"
+      (let [b (populate (.newBuilderForType proto))
+            m (.build ^Message$Builder b)
+            c (.clone ^Message$Builder b)]
+        (.addRepeatedField ^Message$Builder c (fd d "names") "c")
+        (is (= ["a" "b"] (.getField ^Message m (fd d "names"))))
+        (is (= ["a" "b"] (.getField ^Message$Builder b (fd d "names"))))
+        (is (= ["a" "b" "c"] (.getField ^Message$Builder c (fd d "names"))))))
+    (testing "through toBuilder, twice over"
+      (let [m (.build ^Message$Builder (populate (.newBuilderForType proto)))
+            b1 (.toBuilder ^Message m)
+            b2 (.toBuilder ^Message m)]
+        (.setField ^Message$Builder b1 (fd d "i32") (int 1))
+        (.setField ^Message$Builder b2 (fd d "i32") (int 2))
+        (is (= 5 (.getField ^Message m (fd d "i32"))))
+        (is (= 1 (.getField ^Message$Builder b1 (fd d "i32"))))
+        (is (= 2 (.getField ^Message$Builder b2 (fd d "i32"))))))
+    (testing "two messages built from one builder do not share"
+      (let [b (populate (.newBuilderForType proto))
+            m1 (.build ^Message$Builder b)]
+        (.addRepeatedField ^Message$Builder b (fd d "names") "c")
+        (let [m2 (.build ^Message$Builder b)]
+          (.addRepeatedField ^Message$Builder b (fd d "names") "d")
+          (is (= ["a" "b"] (.getField ^Message m1 (fd d "names"))))
+          (is (= ["a" "b" "c"] (.getField ^Message m2 (fd d "names"))))
+          (is (= ["a" "b" "c" "d"] (.getField ^Message$Builder b (fd d "names")))))))))
+
 (deftest merge-from-follows-protobuf-semantics
   (let [proto (compiled wp3/Wire-prototype)
         d (desc proto)

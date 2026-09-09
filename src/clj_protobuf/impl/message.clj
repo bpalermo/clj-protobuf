@@ -8,10 +8,11 @@
 
   A CompiledMessage is a compiled type, an Object[] of slots and an
   UnknownFieldSet (nil when empty). It is immutable; its serialized size is
-  memoized. A CompiledBuilder is the same, mutable. Collections in slots are
-  never mutated in place once a message may share them: a builder that has
-  built, or was made by toBuilder, copies a collection before touching it.
-  The parser owns fresh slots, so parsing mutates freely.
+  memoized. A CompiledBuilder is the same, mutable. Building hands the slot
+  array to the message rather than copying it, so a builder that has built,
+  or was made by toBuilder or clone, owns nothing: it copies the array and
+  its collections before its next write. See SlotOwner. The parser owns
+  fresh slots, so parsing mutates freely.
 
   The reflective API returns what protobuf-java's does — EnumValueDescriptor
   for enums, a list of entry messages for maps, the nested default instance
@@ -434,7 +435,7 @@
   (toByteString [this] (to-byte-string this))
   (getParserForType [_] (parser-for type))
   (newBuilderForType [_] (->builder type (object-array (compile/field-count type)) nil false))
-  (toBuilder [_] (->builder type (aclone slots) unknown true))
+  (toBuilder [_] (->builder type slots unknown true))
 
   Object
   (equals [_ o] (message-equals? type slots (unknown-or-empty unknown) o))
@@ -468,11 +469,37 @@
                               incoming)
     :else incoming))
 
+;; Building hands the slot array to the message rather than copying it: the
+;; common shape by far is build-once-and-drop, and a copy there is one
+;; Object[] per message on the encode path. What pays for it is `ownSlots`:
+;; a builder that has built (or came from toBuilder or clone) no longer owns
+;; its array, and takes a private copy — collections included — before it
+;; mutates anything. Every mutating method therefore opens with
+;;
+;;     ^objects slots (.ownSlots this)
+;;
+;; shadowing the field, and a method that mutates without it would write
+;; through into a built message. //test:message_test's aliasing suite drives
+;; every one of them and pins that it does not.
+(definterface SlotOwner
+  ;; definterface needs the array class itself; ^objects is an fn-hint alias
+  (^"[Ljava.lang.Object;" ownSlots []))
+
 (deftype CompiledBuilder [^CompiledType type
-                          ^objects slots
+                          ^:unsynchronized-mutable ^objects slots
                           ^:unsynchronized-mutable ^UnknownFieldSet unknown
-                          ;; true when a message may share our collections
+                          ;; true when a message may share our slots
                           ^:unsynchronized-mutable shared]
+  SlotOwner
+  (ownSlots [_]
+    (when shared
+      (let [n (alength slots)
+            fresh (object-array n)]
+        (dotimes [i n] (aset fresh i (copy-collection (aget slots i))))
+        (set! slots fresh)
+        (set! shared false)))
+    slots)
+
   Message$Builder
   ;; --- reads: the same as the message's
   (getDescriptorForType [_] (.-descriptor type))
@@ -497,16 +524,24 @@
     (.buildPartial this))
   (buildPartial [_]
     (set! shared true)
-    (->message type (aclone slots) unknown))
+    (->message type slots unknown))
   (clear [this]
-    (java.util.Arrays/fill slots nil)
+    ;; a fresh array rather than ownSlots: everything it would copy is about
+    ;; to be overwritten with nil anyway
+    (if shared
+      (do (set! slots (object-array (alength slots)))
+          (set! shared false))
+      (java.util.Arrays/fill slots nil))
     (set! unknown nil)
     this)
-  (clone [_] (->builder type (aclone slots) unknown true))
+  (clone [_]
+    (set! shared true)
+    (->builder type slots unknown true))
 
   ;; --- writes
   (setField [this fd v]
-    (let [^CompiledField f (field-of type fd)]
+    (let [^CompiledField f (field-of type fd)
+          ^objects slots (.ownSlots this)]
       (aset slots (.-slot f) (from-reflective f v))
       (when (>= (.-oneof f) 0)
         (let [^ints siblings (aget ^objects (.-oneof-slots type) (.-oneof f))]
@@ -515,14 +550,16 @@
               (when (not= s (.-slot f)) (aset slots s nil))))))
       this))
   (clearField [this fd]
-    (aset slots (.-slot (field-of type fd)) nil)
+    (aset ^objects (.ownSlots this) (.-slot (field-of type fd)) nil)
     this)
   (clearOneof [this oo]
-    (doseq [^Descriptors$FieldDescriptor fd (.getFields oo)]
-      (aset slots (.getIndex fd) nil))
+    (let [^objects slots (.ownSlots this)]
+      (doseq [^Descriptors$FieldDescriptor fd (.getFields oo)]
+        (aset slots (.getIndex fd) nil)))
     this)
   (setRepeatedField [this fd i v]
-    (let [^CompiledField f (field-of type fd)]
+    (let [^CompiledField f (field-of type fd)
+          ^objects slots (.ownSlots this)]
       (when-not (.-repeated? f)
         (throw (UnsupportedOperationException. "setRepeatedField() can only be called on repeated fields.")))
       (let [^List cur (or (aget slots (.-slot f)) (ArrayList.))
@@ -531,12 +568,13 @@
         (aset slots (.-slot f) l))
       this))
   (addRepeatedField [this fd v]
-    (let [^CompiledField f (field-of type fd)]
+    (let [^CompiledField f (field-of type fd)
+          ;; ownSlots has already copied any collection a message may share,
+          ;; so these append in place
+          ^objects slots (.ownSlots this)]
       (cond
         (.-repeated? f)
-        (let [^ArrayList l (if-let [cur (aget slots (.-slot f))]
-                             (if shared (ArrayList. ^List cur) cur)
-                             (ArrayList.))]
+        (let [^ArrayList l (or (aget slots (.-slot f)) (ArrayList.))]
           (.add l (if (= :enum (.-kind f)) (Integer/valueOf (int (enum-number v))) v))
           (aset slots (.-slot f) l))
 
@@ -545,9 +583,7 @@
         (let [^Message e v
               ed (entry-descriptor f)
               x (.getField e (.findFieldByName ed "value"))
-              ^LinkedHashMap m (if-let [cur (aget slots (.-slot f))]
-                                 (if shared (LinkedHashMap. ^Map cur) cur)
-                                 (LinkedHashMap.))]
+              ^LinkedHashMap m (or (aget slots (.-slot f)) (LinkedHashMap.))]
           (.put m (.getField e (.findFieldByName ed "key"))
                 (if (.-val-enum-type f) (Integer/valueOf (int (enum-number x))) x))
           (aset slots (.-slot f) m))
@@ -572,7 +608,8 @@
   (^com.google.protobuf.Message$Builder mergeFrom [this ^Message other]
     (if (and (instance? CompiledMessage other) (identical? type (.-type ^CompiledMessage other)))
       (let [^objects theirs (.-slots ^CompiledMessage other)
-            ^objects fields (.-fields type)]
+            ^objects fields (.-fields type)
+            ^objects slots (.ownSlots this)]
         (dotimes [i (alength fields)]
           (let [^CompiledField f (aget fields i)
                 incoming (aget theirs i)]
@@ -584,12 +621,13 @@
       (do
         (when-not (identical? (.-descriptor type) (.getDescriptorForType other))
           (throw (IllegalArgumentException. "mergeFrom(Message) can only merge messages of the same type.")))
-        (doseq [^Map$Entry e (.entrySet (.getAllFields other))]
-          (let [^Descriptors$FieldDescriptor fd (.getKey e)
-                ^CompiledField f (field-of type fd)]
-            (if (>= (.-oneof f) 0)
-              (.setField this fd (.getValue e))
-              (aset slots (.-slot f) (merge-slot f (aget slots (.-slot f)) (from-reflective f (.getValue e)))))))))
+        (let [^objects slots (.ownSlots this)]
+          (doseq [^Map$Entry e (.entrySet (.getAllFields other))]
+            (let [^Descriptors$FieldDescriptor fd (.getKey e)
+                  ^CompiledField f (field-of type fd)]
+              (if (>= (.-oneof f) 0)
+                (.setField this fd (.getValue e))
+                (aset slots (.-slot f) (merge-slot f (aget slots (.-slot f)) (from-reflective f (.getValue e))))))))))
     (.mergeUnknownFields this (.getUnknownFields other))
     this)
   (^com.google.protobuf.MessageLite$Builder mergeFrom [this ^MessageLite other]
@@ -597,10 +635,7 @@
   (^com.google.protobuf.Message$Builder mergeFrom [this ^CodedInputStream in]
     (.mergeFrom this in (ExtensionRegistryLite/getEmptyRegistry)))
   (^com.google.protobuf.Message$Builder mergeFrom [this ^CodedInputStream in ^ExtensionRegistryLite _]
-    (when shared
-      (dotimes [i (alength slots)] (aset slots i (copy-collection (aget slots i))))
-      (set! shared false))
-    (when-let [^UnknownFieldSet$Builder u (compile/read-into type in slots)]
+    (when-let [^UnknownFieldSet$Builder u (compile/read-into type in (.ownSlots this))]
       (.mergeUnknownFields this (.build u)))
     this)
   (^com.google.protobuf.Message$Builder mergeFrom [this ^ByteString bs] (.mergeFrom this (.newCodedInput bs)))
@@ -740,7 +775,7 @@
   siblings — the same rules setField applies."
   [^CompiledBuilder b ^long slot v]
   (let [^CompiledType t (.-type b)
-        ^objects slots (.-slots b)
+        ^objects slots (.ownSlots b)
         ^CompiledField f (aget ^objects (.-fields t) slot)]
     (aset slots slot
           (if (and (not (.-has-presence? f))

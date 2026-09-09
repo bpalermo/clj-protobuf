@@ -117,9 +117,16 @@ Three rules keep the arms interchangeable. Fields without presence are
 normalized so nil also means the default — readers and setters store nil
 for the default value, reads substitute it back — which is what makes
 re-encoding bytes that carried an explicit default drop it, as every
-protobuf implementation does. Collections in slots are never mutated in
-place once a message may share them: a builder that has built, or came
-from `toBuilder`, copies before touching one. And the reflective API returns
+protobuf implementation does. Nothing a message may share is ever mutated
+in place: building hands the slot array itself to the message rather than
+copying it — build-once-and-drop is the shape the encode path actually has,
+and a copy there is one `Object[]` per message — so a builder that has
+built, or came from `toBuilder` or `clone`, owns nothing until it takes a
+private copy of the array and its collections. That copy lives in one
+method, `ownSlots`, and every mutating method opens by calling it; one that
+did not would write through into a message someone already holds, which is
+why `//test:message_test` drives all of them and pins that it does not. And
+the reflective API returns
 exactly what protobuf-java's does — `EnumValueDescriptor` for enums, entry
 messages for maps, nested default instances for unset message fields — with
 `equals`, `hashCode` and `toString` following `AbstractMessage`'s algorithm,
