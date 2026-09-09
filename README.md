@@ -156,6 +156,18 @@ holds it to the same bytes and the same values as the codec path, and
 `//bench:smoke_test` holds every arm in these tables to byte-identical
 output.
 
+Do not read the `interop` column as a CPU win, though — this is the clearest
+case in these tables of a microbenchmark not surviving contact with a whole
+request path. Measured on a real gRPC service rather than here, with
+everything else held constant, `interop=true` cost 3–8% *more* CPU per
+request on unary and was level on streaming, while returning 15–45% lower
+p50. The frames say why: the conversion work moves out of the codec and into
+protoc's generated accessors almost one for one, so the total barely changes
+and only its distribution does. It is a latency-for-CPU trade, and which
+side of it you want depends on whether you are short of headroom or short of
+milliseconds — on a CPU-bound pod the compiled codec is still the better
+default.
+
 ## Building
 
 Bazel (with [rules_clj](https://github.com/bpalermo/rules_clj)) is the build
