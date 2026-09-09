@@ -23,7 +23,7 @@
     (testing (str shape)
       (let [arms  (#'bench/encode-arms s)
             base  ^bytes ((:hinted arms))
-            other (keep arms [:compiled :java])]
+            other (keep arms [:interop :compiled :java])]
         (doseq [f other]
           (is (java.util.Arrays/equals base ^bytes (f))
               (str shape " arms byte-identical")))))))
