@@ -168,6 +168,13 @@ side of it you want depends on whether you are short of headroom or short of
 milliseconds — on a CPU-bound pod the compiled codec is still the better
 default.
 
+Every number above is single-threaded, and that is worth saying because it
+is a question these tables cannot answer. Both arms scale close to linearly
+across threads — `bazel run //bench:contention` measures it, with the hinted
+arm as a control, because until 0.2.5 the compiled arm did not: two
+process-wide synchronized caches on the per-message path capped its encode at
+one thread's throughput no matter how many you gave it.
+
 ## Building
 
 Bazel (with [rules_clj](https://github.com/bpalermo/rules_clj)) is the build

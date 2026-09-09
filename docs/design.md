@@ -137,6 +137,31 @@ byte for byte. The codec bypasses all of that: on a compiled prototype a
 handle carries its slot index, `set-field!` coerces and stores the slot,
 `get-field` reads it.
 
+Two per-type facts hang off the `CompiledType` rather than off a lookup:
+whether the type has a required field anywhere in its transitive closure
+(the initialization check skips the whole walk when it does not), and the
+type's `Parser`. Both are delays on the record, realized once, in the same
+shape as the lazy `nested` types and for the same reason — descriptors are
+cyclic, so neither can be computed eagerly at compile time.
+
+They were both process-wide `Collections.synchronizedMap`s until 0.2.5, and
+that is worth recording because of how the defect behaved rather than what
+it was. `synchronizedMap` takes the monitor on reads, so a cache *hit* still
+serialized; `.build` reached one on every message built, nested messages
+included. The compiled arm's encode measured **0.99x from one thread to
+eight** — eight threads delivering exactly what one delivered — and the full
+pipeline collapsed at eight threads to below its own two-thread number. It
+does not show up in a CPU profile at all, because a thread parked on a
+monitor is not on-CPU; what a profile shows is `SynchronizedMap.get` sitting
+at about 1% of samples, looking like a rounding error. After the move the
+same measurement reads 8.48x, and single-thread throughput is ~23% higher
+too, since the uncontended monitor was not free either. `//bench:contention`
+is the probe, with the hinted arm as its control.
+
+The rule the two of them are an instance of: nothing on the per-message path
+may reach a process-wide mutable structure. A per-type fact belongs on the
+type.
+
 The kill switch is a JVM system property, `clj-protobuf.codec=dynamic`,
 read once at load — `rt/message` runs when a generated namespace loads,
 under AOT or inside a native image, where binding a Var first is

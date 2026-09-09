@@ -49,7 +49,7 @@
             UnsafeByteOperations]
            [java.io InputStream OutputStream]
            [java.nio ByteBuffer]
-           [java.util ArrayList Collections IdentityHashMap LinkedHashMap List Map Map$Entry TreeMap]))
+           [java.util ArrayList Collections LinkedHashMap List Map Map$Entry TreeMap]))
 
 (set! *warn-on-reflection* true)
 
@@ -227,28 +227,16 @@
 ;; field can exist. Types with none in their transitive closure (every proto3
 ;; and editions-default message) skip the walk.
 
-(def ^:private required-somewhere
-  (Collections/synchronizedMap (IdentityHashMap.)))
-
-(defn- required-somewhere?
-  ([^CompiledType t] (required-somewhere? t #{}))
-  ([^CompiledType t visiting]
-   (if-some [known (.get ^Map required-somewhere t)]
-     known
-     (if (contains? visiting t)
-       false
-       (let [visiting (conj visiting t)
-             ^objects fields (.-fields t)
-             answer (boolean
-                     (or (pos? (alength ^ints (.-required-slots t)))
-                         (some (fn [^CompiledField f]
-                                 (and (.-nested f) (required-somewhere? (nested-type f) visiting)))
-                               fields)))]
-         (.put ^Map required-somewhere t answer)
-         answer)))))
+;; The walk itself, and its per-type memo, live on the CompiledType — see
+;; required-of in impl/compile.clj. They used to live here in a
+;; Collections.synchronizedMap keyed by type, which put a process-wide monitor
+;; on every .build: synchronizedMap locks reads too, so a cache HIT still
+;; serialized. Measured 1 -> 8 threads, .build scaled at 0.31x — eight threads
+;; delivering a third of one thread — while .buildPartial, which differs only
+;; by skipping this check, scaled cleanly.
 
 (defn- initialized? [^CompiledType t ^objects slots]
-  (or (not (required-somewhere? t))
+  (or (not @(.-required-somewhere t))
       (let [^ints req (.-required-slots t)
             ^objects fields (.-fields t)]
         (and (loop [i 0]
@@ -734,21 +722,16 @@
 ;; ---------------------------------------------------------------------------
 ;; Per-type parser registry, and the compiler wired to it
 
-(def ^:private parsers (Collections/synchronizedMap (IdentityHashMap.)))
-
 (defn parser-for
-  "The one Parser for a compiled type."
+  "The one Parser for a compiled type. The type holds it — one delay, realized
+  once, no lookup — because a shared registry here was a monitor on every
+  decode for the same reason the required-field memo was one on every build."
   ^Parser [^CompiledType t]
-  (or (.get ^Map parsers t)
-      (locking parsers
-        (or (.get ^Map parsers t)
-            (let [p (CompiledParser. t)]
-              (.put ^Map parsers t p)
-              p)))))
+  @(.-parser t))
 
 (def compile
   "Descriptor -> CompiledType, with this layer's parser for nested types."
-  (compile/compiler (fn [ct] (delay (parser-for (deref ct))))))
+  (compile/compiler (fn [ct] (delay (CompiledParser. (deref ct))))))
 
 (defn prototype
   "The default instance for a descriptor: what rt/message returns on the
