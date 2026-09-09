@@ -70,31 +70,37 @@ x86_64; mean latency / allocated bytes per op; full Clojure-data-to-bytes
 pipelines). `java` is protoc's generated builders driven directly; `hinted`
 is clj-protobuf with the generated classes on the classpath; `compiled` is
 clj-protobuf without them; `jsonista` and `data.json` carry the same value as
-JSON:
+JSON.
+
+This repository builds its own library with Clojure's direct linking on, so
+these numbers include it — 5-18% depending on shape, and the lever described
+below rather than a separate one, so do not count it twice. A consumer
+running the same code without it is a few percent slower on every clj-protobuf
+row:
 
 ### Encode (Clojure data → bytes)
 
 | shape | java | hinted | compiled | jsonista | data.json |
 |---|---|---|---|---|---|
-| tiny | 86 ns / 96 B | 168 ns / 136 B | 311 ns / 224 B | 390 ns / 608 B | 1.03 µs / 624 B |
-| flat | 682 ns / 312 B | 1.18 µs / 488 B | 1.36 µs / 504 B | 1.57 µs / 1248 B | 4.01 µs / 2208 B |
-| deep | — | 907 ns / 552 B | 1.27 µs / 656 B | 1.14 µs / 1080 B | 2.83 µs / 1392 B |
-| wide-repeated | — | 4.26 µs / 3088 B | 3.77 µs / 2112 B | 2.63 µs / 1096 B | 8.65 µs / 4216 B |
-| repeated-messages | 2.25 µs / 2296 B | 6.42 µs / 2824 B | 7.13 µs / 3664 B | 4.16 µs / 4024 B | 24.40 µs / 10424 B |
-| map-heavy | — | 10.61 µs / 7512 B | 8.48 µs / 4760 B | 4.46 µs / 3600 B | 16.60 µs / 10720 B |
-| enum-heavy | — | 1.44 µs / 456 B | 1.36 µs / 392 B | 1.61 µs / 1168 B | 5.44 µs / 2952 B |
+| tiny | 65 ns / 96 B | 143 ns / 136 B | 241 ns / 224 B | 358 ns / 608 B | 858 ns / 624 B |
+| flat | 598 ns / 400 B | 920 ns / 488 B | 915 ns / 504 B | 1.09 µs / 1248 B | 2.78 µs / 2208 B |
+| deep | — | 668 ns / 552 B | 902 ns / 656 B | 704 ns / 1080 B | 2.15 µs / 1392 B |
+| wide-repeated | — | 3.18 µs / 3088 B | 2.55 µs / 2112 B | 2.26 µs / 1096 B | 6.87 µs / 4216 B |
+| repeated-messages | 2.01 µs / 2344 B | 4.33 µs / 2824 B | 5.24 µs / 3664 B | 3.40 µs / 4024 B | 15.63 µs / 10424 B |
+| map-heavy | — | 7.04 µs / 7512 B | 5.71 µs / 4760 B | 3.81 µs / 3616 B | 12.20 µs / 10720 B |
+| enum-heavy | — | 1.15 µs / 480 B | 1.06 µs / 392 B | 1.35 µs / 1168 B | 3.85 µs / 2952 B |
 
 ### Decode (bytes → Clojure data)
 
 | shape | java | hinted | compiled | jsonista | data.json |
 |---|---|---|---|---|---|
-| tiny | 97 ns / 192 B | 217 ns / 232 B | 242 ns / 216 B | 769 ns / 1136 B | 761 ns / 1584 B |
-| flat | 407 ns / 432 B | 910 ns / 600 B | 638 ns / 520 B | 2.10 µs / 2168 B | 4.86 µs / 5776 B |
-| deep | — | 918 ns / 1024 B | 744 ns / 760 B | 1.32 µs / 2088 B | 1.19 µs / 3840 B |
-| wide-repeated | — | 3.87 µs / 4352 B | 3.88 µs / 4208 B | 3.33 µs / 4104 B | 5.73 µs / 11496 B |
-| repeated-messages | 2.04 µs / 3312 B | 6.10 µs / 5344 B | 6.18 µs / 4704 B | 11.60 µs / 10080 B | 10.45 µs / 25096 B |
-| map-heavy | — | 13.73 µs / 13048 B | 11.52 µs / 10032 B | 10.11 µs / 5736 B | 15.18 µs / 22248 B |
-| enum-heavy | — | 1.99 µs / 1056 B | 1.87 µs / 856 B | 2.22 µs / 2840 B | 2.69 µs / 7200 B |
+| tiny | 94 ns / 192 B | 205 ns / 232 B | 189 ns / 216 B | 604 ns / 1136 B | 654 ns / 1584 B |
+| flat | 372 ns / 432 B | 678 ns / 600 B | 579 ns / 520 B | 1.90 µs / 2168 B | 3.39 µs / 5816 B |
+| deep | — | 784 ns / 1024 B | 641 ns / 760 B | 1.31 µs / 2048 B | 1.21 µs / 3840 B |
+| wide-repeated | — | 2.85 µs / 4352 B | 3.21 µs / 4208 B | 3.56 µs / 4104 B | 3.74 µs / 11496 B |
+| repeated-messages | 1.97 µs / 3312 B | 4.88 µs / 5344 B | 4.56 µs / 4704 B | 10.14 µs / 10080 B | 11.15 µs / 25048 B |
+| map-heavy | — | 11.01 µs / 12208 B | 10.54 µs / 10072 B | 8.49 µs / 5736 B | 11.18 µs / 21760 B |
+| enum-heavy | — | 1.72 µs / 1056 B | 1.76 µs / 856 B | 2.23 µs / 2840 B | 3.00 µs / 7240 B |
 
 One more lever, measured on a real gRPC service rather than here: this jar
 ships as source, so Clojure compiles these namespaces when they load, and
@@ -114,27 +120,25 @@ the place to read it; the jar published here stays source either way, so
 that generated records and call sites specialize against the Clojure and
 protobuf-java versions the consumer actually builds with.
 
-Read it honestly: the hinted arm sits ~2× off protoc's own generated code on
-small messages and the compiled arm within ~1.3× of the hinted one — and on
-decode the compiled arm is the faster of the two on most shapes, a slot read
-beating a typed-accessor call. Both beat JSON both ways on small and nested
-messages, and lists of messages decode faster than JSON too; jackson still
-wins encoding the collection-heavy shapes, where protobuf-java's own map and
-list building dominates. Before 0.2.0 the arm without generated classes was
-`DynamicMessage`, two to three times slower than the compiled one on decode
-and up to 2.5× on encode. Wire compactness and schema are protobuf's
-argument regardless. The shapes are archetypes precisely because no single
-number describes 'protobuf vs JSON'.
+Read it honestly. Against protoc's own generated code the hinted arm is
+roughly 2× on tiny messages and closer on wider ones; the compiled arm is
+within 1.7× of the hinted arm at worst and beats it on most decode shapes,
+because a slot read is cheaper than a typed-accessor call. Against JSON,
+protobuf wins both directions on the small and nested shapes and wins decode
+on lists of messages, while jackson wins encoding every collection-heavy
+shape and also wins map-heavy decode — building a 50-entry Clojure map is
+most of that row, and protobuf pays for entry messages on top. Before 0.2.0
+the arm without generated classes was `DynamicMessage`, two to three times
+slower than the compiled one on decode. Wire compactness and schema are
+protobuf's argument regardless, and the shapes are archetypes precisely
+because no single number describes "protobuf vs JSON".
 
-## Dependencies
-
-`deps.edn` declares exactly two: Clojure and `protobuf-java`. This library
-does not declare `protobuf-java-util`; if you use `JsonFormat` or the other
-utilities, add it yourself **at the same version as `protobuf-java`** — a
-transitive `protobuf-java-util` from an older line (grpc-protobuf pulls a
-3.25.x one) next to a 4.x core works for the common paths but is not a
-supported pair, and aligning the two is the first thing to check when
-anything descriptor-related misbehaves.
+Not in this table: protoc-gen-clojure's `interop=true`, which emits direct
+Java accessor calls in both directions from plugin 0.6.0 (writes were typed
+earlier). Measured separately on this corpus it beats the compiled arm on
+every shape, most of all where a message is small or nested. It needs
+protoc's Java classes at load time, and `//test:interop_test` holds it to
+the same bytes and the same values as the codec path.
 
 ## Building
 
