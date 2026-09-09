@@ -171,13 +171,22 @@ per request. On two cores the sign flipped and it cost 10–14% less — on
 unchanged images, which is hard to explain by anything except contention,
 since contention cannot exist on one core. That contention was this
 library's, not protoc's: until 0.2.5 the compiled arm reached a process-wide
-monitor on every message built (see `//bench:contention`). Those two-core
-numbers are therefore a measurement of the compiled arm against a known
-defect, and the gap should narrow toward the 1–4% the single-core runs
-showed. That re-measurement has not been published yet, so treat the
-narrowing as expected rather than established, and if you are choosing today
-on a multi-core pod, measure your own shape on 0.2.5 rather than trusting
-either number.
+monitor on every message built (see `//bench:contention`).
+
+That re-measurement has since run, and it is worth reporting as it came out
+rather than as it was predicted. On 0.2.5 the monitor is confirmed gone from
+the profile — the frame is absent where it was 0.85% of CPU — and the
+compiled arm's CPU per message fell about 3%, narrowing interop's lead from
+roughly 10% to 7.5%. The prediction was that it would close to the 1–4% the
+single-core runs showed. It did not. The residual is unexplained: two cores
+may simply be too little parallelism for a thread-scaling win to show, or
+something besides the lock contributes to interop's lead, and that run cannot
+separate the two. More cores would settle it and none were available.
+
+So: interop's latency advantage is solid, its CPU advantage on multi-core is
+real but smaller than the pre-0.2.5 numbers said and not fully accounted for.
+If you are choosing on a multi-core pod, measure your own shape rather than
+trusting any of these numbers.
 
 Every number above is single-threaded, and that is worth saying because it
 is a question these tables cannot answer. Both arms scale close to linearly
