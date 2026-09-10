@@ -178,10 +178,17 @@ rather than as it was predicted. On 0.2.5 the monitor is confirmed gone from
 the profile — the frame is absent where it was 0.85% of CPU — and the
 compiled arm's CPU per message fell about 3%, narrowing interop's lead from
 roughly 10% to 7.5%. The prediction was that it would close to the 1–4% the
-single-core runs showed. It did not. The residual is unexplained: two cores
-may simply be too little parallelism for a thread-scaling win to show, or
-something besides the lock contributes to interop's lead, and that run cannot
-separate the two. More cores would settle it and none were available.
+single-core runs showed. It did not.
+
+The residual is still unexplained, and the reason has since turned out to be
+that the measurement was bound by something outside the process entirely: the
+host was saturated. The node ran 4.11 of its 4 cores while the pod sat inside
+a 2-core quota that was never throttled, because kernel softirq and overlay
+networking are charged to the node rather than to the pod's cgroup — so no
+pod-level counter in that harness could see the wall either arm was against.
+A thread-scaling win has little room to appear on a machine with nothing left
+to schedule, which makes the 3% a floor rather than an estimate of what the
+fix is worth.
 
 So: interop's latency advantage is solid, its CPU advantage on multi-core is
 real but smaller than the pre-0.2.5 numbers said and not fully accounted for.
