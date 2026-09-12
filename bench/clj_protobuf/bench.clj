@@ -98,6 +98,16 @@
 
 (defn- resolve-in [ns-sym sym] @(ns-resolve ns-sym sym))
 
+(def arm-namespaces
+  "The clj-protobuf arms and the fixture namespace each is emitted into. Same
+  protos and the same generated symbols in all three — what differs is which
+  prototype `rt/message` hands back, which is the whole subject of these
+  tables. Every arm resolves the same `to`/`from`/`proto` symbols out of its
+  own namespace, so an arm is added here and nowhere else."
+  {:hinted   'fixtures.bench.shapes
+   :interop  'interop.fixtures.bench.shapes
+   :compiled 'fixtures.bench-nohint.shapes})
+
 ;; ---------------------------------------------------------------------------
 ;; The raw protobuf-java arm: protoc's builders driven directly, the floor the
 ;; other arms are measured against. Hand-written for the two headline shapes
@@ -163,35 +173,32 @@
 
 (def mapper (j/object-mapper {:decode-key-fn keyword}))
 
-(defn- encode-arms [{:keys [shape to]}]
-  (let [value      (values shape)
-        hinted-to  (resolve-in 'fixtures.bench.shapes to)
-        interop-to (resolve-in 'interop.fixtures.bench.shapes to)
-        dynamic-to (resolve-in 'fixtures.bench-nohint.shapes to)]
-    (cond-> {:hinted    #(pb/encode ^Message (hinted-to value))
-             :interop   #(pb/encode ^Message (interop-to value))
-             :compiled  #(pb/encode ^Message (dynamic-to value))
-             :jsonista  #(j/write-value-as-bytes value mapper)
-             :data-json #(data-json/write-str value)}
+(defn encode-arms [{:keys [shape to]}]
+  (let [value (values shape)]
+    (cond-> (into {:jsonista  #(j/write-value-as-bytes value mapper)
+                   :data-json #(data-json/write-str value)}
+                  (map (fn [[arm ns-sym]]
+                         (let [to-fn (resolve-in ns-sym to)]
+                           [arm #(pb/encode ^Message (to-fn value))])))
+                  arm-namespaces)
       (java-encoders shape)
       (assoc :java (let [enc (java-encoders shape)] #(pb/encode ^Message (enc value)))))))
 
-(defn- decode-arms [{:keys [shape to proto from]}]
-  (let [value        (values shape)
-        bytes        (pb/encode ^Message ((resolve-in 'fixtures.bench.shapes to) value))
-        json-bytes   (j/write-value-as-bytes value mapper)
-        json-str     (data-json/write-str value)
-        hinted-proto  (resolve-in 'fixtures.bench.shapes proto)
-        hinted-from   (resolve-in 'fixtures.bench.shapes from)
-        interop-proto (resolve-in 'interop.fixtures.bench.shapes proto)
-        interop-from  (resolve-in 'interop.fixtures.bench.shapes from)
-        dynamic-proto (resolve-in 'fixtures.bench-nohint.shapes proto)
-        dynamic-from  (resolve-in 'fixtures.bench-nohint.shapes from)]
-    (cond-> {:hinted    #(hinted-from (pb/decode hinted-proto bytes))
-             :interop   #(interop-from (pb/decode interop-proto bytes))
-             :compiled  #(dynamic-from (pb/decode dynamic-proto bytes))
-             :jsonista  #(j/read-value ^bytes json-bytes mapper)
-             :data-json #(data-json/read-str json-str :key-fn keyword)}
+(defn decode-arms [{:keys [shape to proto from]}]
+  (let [value      (values shape)
+        bytes      (pb/encode ^Message ((resolve-in (:hinted arm-namespaces) to) value))
+        json-bytes (j/write-value-as-bytes value mapper)
+        json-str   (data-json/write-str value)]
+    (cond-> (into {:jsonista  #(j/read-value ^bytes json-bytes mapper)
+                   :data-json #(data-json/read-str json-str :key-fn keyword)}
+                  ;; each arm parses the bytes itself: the namespaces build
+                  ;; independent descriptors, so a message from one arm is not
+                  ;; the type another arm's prototype describes
+                  (map (fn [[arm ns-sym]]
+                         (let [proto-v (resolve-in ns-sym proto)
+                               from-fn (resolve-in ns-sym from)]
+                           [arm #(from-fn (pb/decode proto-v bytes))])))
+                  arm-namespaces)
       (java-parsers shape)
       (assoc :java (let [parse (java-parsers shape)] #(parse bytes))))))
 

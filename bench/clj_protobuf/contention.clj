@@ -27,29 +27,29 @@
 
       bazel run //bench:contention              ; 1, 2, 4, 8 threads
       bazel run //bench:contention -- 1 2 4 8 16"
-  (:require [clj-protobuf.core :as pb]
-            [fixtures.bench.shapes :as hinted]
-            [fixtures.bench-nohint.shapes :as compiled])
-  (:import [com.google.protobuf Message]
-           [java.util.concurrent CountDownLatch]))
+  (:require [clj-protobuf.bench :as bench])
+  (:import [java.util.concurrent CountDownLatch]))
 
 ;; A reflective call inside an arm does not just make it slow, it makes the
 ;; measurement wrong: reflection dominates the timing and hides contention.
 ;; This namespace measured .build as scaling fine, once, for that reason.
+;; Nothing here constructs an arm by hand for the same reason it does not
+;; restate the corpus: both come from //bench:run's tables below, so the two
+;; probes cannot drift apart and an arm added there appears here for free.
 (set! *warn-on-reflection* true)
 
-(def ^:private value
-  {:id "r" :rows (mapv (fn [i] {:id (str "row-" i) :n i :ok (even? i)}) (range 20))})
-
-(def ^:private bytes-in (pb/encode ^Message (hinted/RepeatedMessages->proto value)))
+;; repeated-messages: 21 messages built per encode and parsed per decode, so a
+;; per-message lock is reached 21 times an op — the density that made the
+;; 0.2.4 monitor visible at all. A flatter shape would have hidden it.
+(def ^:private shape
+  (first (filter (comp #{:repeated-messages} :shape) bench/shapes)))
 
 (defn- arms []
-  (let [cp ^Message compiled/RepeatedMessages-prototype
-        hp ^Message hinted/RepeatedMessages-prototype]
-    [["compiled encode" #(pb/encode ^Message (compiled/RepeatedMessages->proto value))]
-     ["compiled decode" #(compiled/proto->RepeatedMessages (pb/decode cp bytes-in))]
-     ["hinted encode"   #(pb/encode ^Message (hinted/RepeatedMessages->proto value))]
-     ["hinted decode"   #(hinted/proto->RepeatedMessages (pb/decode hp bytes-in))]]))
+  (let [enc (bench/encode-arms shape)
+        dec (bench/decode-arms shape)]
+    (for [arm [:compiled :hinted]
+          [dir by-arm] [["encode" enc] ["decode" dec]]]
+      [(str (name arm) " " dir) (get by-arm arm)])))
 
 (defn- ops-per-sec
   "Every thread starts at the same instant and runs the same count, so the

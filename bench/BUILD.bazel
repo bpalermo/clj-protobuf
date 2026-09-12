@@ -43,11 +43,7 @@ clj_library(
     namespaces = ["clj-protobuf.contention"],
     strip_prefix = "bench",
     deps = [
-        "//src:clj_protobuf",
-        "//test:fixtures",
-        "//test:fixtures_nohint",
-        "//test/proto:fixtures_java_proto",
-        "@deps//:com_google_protobuf_protobuf_java",
+        ":bench_lib",
         "@deps//:org_clojure_clojure",
     ],
 )
@@ -59,31 +55,6 @@ clj_binary(
     deps = [":contention_lib"],
 )
 
-# EXPERIMENT with a deletion criterion: option C from the typed-read-path
-# spec, hand-written for one shape to measure a ceiling. Delete once the
-# number is in the plan — kept, it becomes a second parser nobody holds to the
-# equivalence suite.
-clj_library(
-    name = "option_c_lib",
-    srcs = ["clj_protobuf/option_c.clj"],
-    namespaces = ["clj-protobuf.option-c"],
-    strip_prefix = "bench",
-    deps = [
-        ":bench_lib",
-        "//src:clj_protobuf",
-        "//test:fixtures",
-        "@deps//:com_google_protobuf_protobuf_java",
-        "@deps//:org_clojure_clojure",
-    ],
-)
-
-clj_binary(
-    name = "option_c",
-    main = "clj-protobuf.option-c",
-    tags = ["manual"],
-    deps = [":option_c_lib"],
-)
-
 clj_library(
     name = "smoke_test_lib",
     srcs = ["clj_protobuf/bench_smoke_test.clj"],
@@ -92,7 +63,6 @@ clj_library(
     deps = [
         ":bench_lib",
         ":contention_lib",
-        ":option_c_lib",
         "//src:clj_protobuf",
         "@deps//:com_google_protobuf_protobuf_java",
         "@deps//:org_clojure_clojure",
