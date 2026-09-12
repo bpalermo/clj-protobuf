@@ -47,6 +47,22 @@
 ;; ---------------------------------------------------------------------------
 ;; Corpus
 
+(defn- item [i]
+  {:sku (format "SKU-%05d" i) :qty (int (inc (mod i 7))) :price (+ 1.5 i)})
+
+(defn- reply
+  "The production shape: a reply wrapping a body-bearing payload and n line
+  items, with `filler` characters of body. Varying the two knobs moves field
+  count and byte count independently."
+  [n filler]
+  {:name "reply-1"
+   :payload {:id "pl-0001"
+             :title "Quarterly summary"
+             :body (apply str (repeat filler \x))
+             :created-at 1757462400000
+             :score 0.9375
+             :items (mapv item (range n))}})
+
 (def values
   {:tiny {:id "t-1" :n 42 :ok true}
    :flat {:f1 "alpha" :f2 "beta" :f3 "gamma" :f4 7 :f5 1024 :f6 123456789012
@@ -59,7 +75,15 @@
    :enum-heavy {:id "e"
                 :s1 :STATUS_ACTIVE :s2 :STATUS_PAUSED :s3 :STATUS_CLOSED :s4 :STATUS_ACTIVE
                 :s5 :STATUS_PAUSED :s6 :STATUS_CLOSED :s7 :STATUS_ACTIVE :s8 :STATUS_PAUSED
-                :history (vec (take 8 (cycle [:STATUS_ACTIVE :STATUS_PAUSED :STATUS_CLOSED])))}})
+                :history (vec (take 8 (cycle [:STATUS_ACTIVE :STATUS_PAUSED :STATUS_CLOSED])))}
+   ;; The two production-shaped tiers: the SAME wire size carried two ways, so
+   ;; that the per-field and per-byte terms separate instead of moving
+   ;; together the way they do in every shape above. realistic is 30 leaf
+   ;; values with its bulk in one filler string; dense is 120 across many
+   ;; small line items. Byte targets and structure come from clj-grpc's soak
+   ;; payload so the two corpora's tables need no conversion step.
+   :realistic (reply 8 774)
+   :dense (reply 38 60)})
 
 (def shapes
   [{:shape :tiny              :to 'Tiny->proto              :proto 'Tiny-prototype              :from 'proto->Tiny}
@@ -68,7 +92,9 @@
    {:shape :wide-repeated     :to 'WideRepeated->proto      :proto 'WideRepeated-prototype      :from 'proto->WideRepeated}
    {:shape :repeated-messages :to 'RepeatedMessages->proto  :proto 'RepeatedMessages-prototype  :from 'proto->RepeatedMessages}
    {:shape :map-heavy         :to 'MapHeavy->proto          :proto 'MapHeavy-prototype          :from 'proto->MapHeavy}
-   {:shape :enum-heavy        :to 'EnumHeavy->proto         :proto 'EnumHeavy-prototype         :from 'proto->EnumHeavy}])
+   {:shape :enum-heavy        :to 'EnumHeavy->proto         :proto 'EnumHeavy-prototype         :from 'proto->EnumHeavy}
+   {:shape :realistic         :to 'Reply->proto             :proto 'Reply-prototype             :from 'proto->Reply}
+   {:shape :dense             :to 'Reply->proto             :proto 'Reply-prototype             :from 'proto->Reply}])
 
 (defn- resolve-in [ns-sym sym] @(ns-resolve ns-sym sym))
 

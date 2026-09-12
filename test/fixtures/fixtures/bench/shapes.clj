@@ -8,7 +8,7 @@
             [clj-protobuf.runtime :as rt]))
 
 (def ^:private descriptor-b64
-  "ChtmaXh0dXJlcy9iZW5jaC9zaGFwZXMucHJvdG8SDmZpeHR1cmVzLmJlbmNoIswBCgRGbGF0Eg4KAmYxGAEgASgJUgJmMRIOCgJmMhgCIAEoCVICZjISDgoCZjMYAyABKAlSAmYzEg4KAmY0GAQgASgFUgJmNBIOCgJmNRgFIAEoBVICZjUSDgoCZjYYBiABKANSAmY2Eg4KAmY3GAcgASgDUgJmNxIOCgJmOBgIIAEoCFICZjgSDgoCZjkYCSABKAhSAmY5EhAKA2YxMBgKIAEoAVIDZjEwEhAKA2YxMRgLIAEoAVIDZjExEhAKA2YxMhgMIAEoCVIDZjEyIjQKBFRpbnkSDgoCaWQYASABKAlSAmlkEgwKAW4YAiABKAVSAW4SDgoCb2sYAyABKAhSAm9rIkQKBERlZXASDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWwyUgVjaGlsZCJGCgZMZXZlbDISDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWwzUgVjaGlsZCJGCgZMZXZlbDMSDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWw0UgVjaGlsZCIsCgZMZXZlbDQSDgoCaWQYASABKAlSAmlkEhIKBGxlYWYYAiABKAlSBGxlYWYiNAoMV2lkZVJlcGVhdGVkEg4KAmlkGAEgASgJUgJpZBIUCgVpdGVtcxgCIAMoCVIFaXRlbXMiTAoQUmVwZWF0ZWRNZXNzYWdlcxIOCgJpZBgBIAEoCVICaWQSKAoEcm93cxgCIAMoCzIULmZpeHR1cmVzLmJlbmNoLlRpbnlSBHJvd3MikwEKCE1hcEhlYXZ5Eg4KAmlkGAEgASgJUgJpZBI8CgZjb3VudHMYAiADKAsyJC5maXh0dXJlcy5iZW5jaC5NYXBIZWF2eS5Db3VudHNFbnRyeVIGY291bnRzGjkKC0NvdW50c0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5EhQKBXZhbHVlGAIgASgFUgV2YWx1ZToCOAEijQMKCUVudW1IZWF2eRIOCgJpZBgBIAEoCVICaWQSJgoCczEYAiABKA4yFi5maXh0dXJlcy5iZW5jaC5TdGF0dXNSAnMxEiYKAnMyGAMgASgOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgJzMhImCgJzMxgEIAEoDjIWLmZpeHR1cmVzLmJlbmNoLlN0YXR1c1ICczMSJgoCczQYBSABKA4yFi5maXh0dXJlcy5iZW5jaC5TdGF0dXNSAnM0EiYKAnM1GAYgASgOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgJzNRImCgJzNhgHIAEoDjIWLmZpeHR1cmVzLmJlbmNoLlN0YXR1c1ICczYSJgoCczcYCCABKA4yFi5maXh0dXJlcy5iZW5jaC5TdGF0dXNSAnM3EiYKAnM4GAkgASgOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgJzOBIwCgdoaXN0b3J5GAogAygOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgdoaXN0b3J5KlkKBlN0YXR1cxIWChJTVEFUVVNfVU5TUEVDSUZJRUQQABIRCg1TVEFUVVNfQUNUSVZFEAESEQoNU1RBVFVTX1BBVVNFRBACEhEKDVNUQVRVU19DTE9TRUQQA0IZChdjb20uYWNtZS5maXh0dXJlcy5iZW5jaGIIZWRpdGlvbnNw6Qc=")
+  "ChtmaXh0dXJlcy9iZW5jaC9zaGFwZXMucHJvdG8SDmZpeHR1cmVzLmJlbmNoIswBCgRGbGF0Eg4KAmYxGAEgASgJUgJmMRIOCgJmMhgCIAEoCVICZjISDgoCZjMYAyABKAlSAmYzEg4KAmY0GAQgASgFUgJmNBIOCgJmNRgFIAEoBVICZjUSDgoCZjYYBiABKANSAmY2Eg4KAmY3GAcgASgDUgJmNxIOCgJmOBgIIAEoCFICZjgSDgoCZjkYCSABKAhSAmY5EhAKA2YxMBgKIAEoAVIDZjEwEhAKA2YxMRgLIAEoAVIDZjExEhAKA2YxMhgMIAEoCVIDZjEyIjQKBFRpbnkSDgoCaWQYASABKAlSAmlkEgwKAW4YAiABKAVSAW4SDgoCb2sYAyABKAhSAm9rIkQKBERlZXASDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWwyUgVjaGlsZCJGCgZMZXZlbDISDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWwzUgVjaGlsZCJGCgZMZXZlbDMSDgoCaWQYASABKAlSAmlkEiwKBWNoaWxkGAIgASgLMhYuZml4dHVyZXMuYmVuY2guTGV2ZWw0UgVjaGlsZCIsCgZMZXZlbDQSDgoCaWQYASABKAlSAmlkEhIKBGxlYWYYAiABKAlSBGxlYWYiNAoMV2lkZVJlcGVhdGVkEg4KAmlkGAEgASgJUgJpZBIUCgVpdGVtcxgCIAMoCVIFaXRlbXMiTAoQUmVwZWF0ZWRNZXNzYWdlcxIOCgJpZBgBIAEoCVICaWQSKAoEcm93cxgCIAMoCzIULmZpeHR1cmVzLmJlbmNoLlRpbnlSBHJvd3MikwEKCE1hcEhlYXZ5Eg4KAmlkGAEgASgJUgJpZBI8CgZjb3VudHMYAiADKAsyJC5maXh0dXJlcy5iZW5jaC5NYXBIZWF2eS5Db3VudHNFbnRyeVIGY291bnRzGjkKC0NvdW50c0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5EhQKBXZhbHVlGAIgASgFUgV2YWx1ZToCOAEijQMKCUVudW1IZWF2eRIOCgJpZBgBIAEoCVICaWQSJgoCczEYAiABKA4yFi5maXh0dXJlcy5iZW5jaC5TdGF0dXNSAnMxEiYKAnMyGAMgASgOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgJzMhImCgJzMxgEIAEoDjIWLmZpeHR1cmVzLmJlbmNoLlN0YXR1c1ICczMSJgoCczQYBSABKA4yFi5maXh0dXJlcy5iZW5jaC5TdGF0dXNSAnM0EiYKAnM1GAYgASgOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgJzNRImCgJzNhgHIAEoDjIWLmZpeHR1cmVzLmJlbmNoLlN0YXR1c1ICczYSJgoCczcYCCABKA4yFi5maXh0dXJlcy5iZW5jaC5TdGF0dXNSAnM3EiYKAnM4GAkgASgOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgJzOBIwCgdoaXN0b3J5GAogAygOMhYuZml4dHVyZXMuYmVuY2guU3RhdHVzUgdoaXN0b3J5Ik4KBVJlcGx5EhIKBG5hbWUYASABKAlSBG5hbWUSMQoHcGF5bG9hZBgCIAEoCzIXLmZpeHR1cmVzLmJlbmNoLlBheWxvYWRSB3BheWxvYWQipAEKB1BheWxvYWQSDgoCaWQYASABKAlSAmlkEhQKBXRpdGxlGAIgASgJUgV0aXRsZRISCgRib2R5GAMgASgJUgRib2R5Eh0KCmNyZWF0ZWRfYXQYBCABKANSCWNyZWF0ZWRBdBIUCgVzY29yZRgFIAEoAVIFc2NvcmUSKgoFaXRlbXMYBiADKAsyFC5maXh0dXJlcy5iZW5jaC5JdGVtUgVpdGVtcyJACgRJdGVtEhAKA3NrdRgBIAEoCVIDc2t1EhAKA3F0eRgCIAEoBVIDcXR5EhQKBXByaWNlGAMgASgBUgVwcmljZSpZCgZTdGF0dXMSFgoSU1RBVFVTX1VOU1BFQ0lGSUVEEAASEQoNU1RBVFVTX0FDVElWRRABEhEKDVNUQVRVU19QQVVTRUQQAhIRCg1TVEFUVVNfQ0xPU0VEEANCGQoXY29tLmFjbWUuZml4dHVyZXMuYmVuY2hiCGVkaXRpb25zcOkH")
 
 (def file-descriptor
   (rt/file-descriptor descriptor-b64
@@ -298,4 +298,85 @@
     (codec/get-field msg EnumHeavy--s7 opts)
     (codec/get-field msg EnumHeavy--s8 opts)
     (codec/get-field msg EnumHeavy--history opts)
+    )))
+
+(defrecord Reply [name payload])
+(def Reply-prototype (rt/message file-descriptor "Reply" "com.acme.fixtures.bench.Reply"))
+(def ^:private Reply--name (rt/field Reply-prototype "name"))
+(def ^:private Reply--payload (rt/field Reply-prototype "payload"))
+(defn Reply->proto
+  "Clojure -> protobuf. Takes the Reply record or any map
+  with the same keys — records and plain maps are interchangeable."
+  ([m] (Reply->proto m nil))
+  ([m opts]
+   (let [b (.newBuilderForType ^com.google.protobuf.Message Reply-prototype)]
+     (codec/set-field! b Reply--name (:name m) opts)
+     (codec/set-field! b Reply--payload (:payload m) opts)
+     (.build b))))
+(defn proto->Reply
+  "protobuf -> a Reply record. Absent fields are nil."
+  ([msg] (proto->Reply msg nil))
+  ([^com.google.protobuf.Message msg opts]
+   (->Reply
+    (codec/get-field msg Reply--name opts)
+    (codec/get-field msg Reply--payload opts)
+    )))
+
+(defrecord Payload [id title body created-at score items])
+(def Payload-prototype (rt/message file-descriptor "Payload" "com.acme.fixtures.bench.Payload"))
+(def ^:private Payload--id (rt/field Payload-prototype "id"))
+(def ^:private Payload--title (rt/field Payload-prototype "title"))
+(def ^:private Payload--body (rt/field Payload-prototype "body"))
+(def ^:private Payload--created-at (rt/field Payload-prototype "created_at"))
+(def ^:private Payload--score (rt/field Payload-prototype "score"))
+(def ^:private Payload--items (rt/field Payload-prototype "items"))
+(defn Payload->proto
+  "Clojure -> protobuf. Takes the Payload record or any map
+  with the same keys — records and plain maps are interchangeable."
+  ([m] (Payload->proto m nil))
+  ([m opts]
+   (let [b (.newBuilderForType ^com.google.protobuf.Message Payload-prototype)]
+     (codec/set-field! b Payload--id (:id m) opts)
+     (codec/set-field! b Payload--title (:title m) opts)
+     (codec/set-field! b Payload--body (:body m) opts)
+     (codec/set-field! b Payload--created-at (:created-at m) opts)
+     (codec/set-field! b Payload--score (:score m) opts)
+     (codec/set-field! b Payload--items (:items m) opts)
+     (.build b))))
+(defn proto->Payload
+  "protobuf -> a Payload record. Absent fields are nil."
+  ([msg] (proto->Payload msg nil))
+  ([^com.google.protobuf.Message msg opts]
+   (->Payload
+    (codec/get-field msg Payload--id opts)
+    (codec/get-field msg Payload--title opts)
+    (codec/get-field msg Payload--body opts)
+    (codec/get-field msg Payload--created-at opts)
+    (codec/get-field msg Payload--score opts)
+    (codec/get-field msg Payload--items opts)
+    )))
+
+(defrecord Item [sku qty price])
+(def Item-prototype (rt/message file-descriptor "Item" "com.acme.fixtures.bench.Item"))
+(def ^:private Item--sku (rt/field Item-prototype "sku"))
+(def ^:private Item--qty (rt/field Item-prototype "qty"))
+(def ^:private Item--price (rt/field Item-prototype "price"))
+(defn Item->proto
+  "Clojure -> protobuf. Takes the Item record or any map
+  with the same keys — records and plain maps are interchangeable."
+  ([m] (Item->proto m nil))
+  ([m opts]
+   (let [b (.newBuilderForType ^com.google.protobuf.Message Item-prototype)]
+     (codec/set-field! b Item--sku (:sku m) opts)
+     (codec/set-field! b Item--qty (:qty m) opts)
+     (codec/set-field! b Item--price (:price m) opts)
+     (.build b))))
+(defn proto->Item
+  "protobuf -> a Item record. Absent fields are nil."
+  ([msg] (proto->Item msg nil))
+  ([^com.google.protobuf.Message msg opts]
+   (->Item
+    (codec/get-field msg Item--sku opts)
+    (codec/get-field msg Item--qty opts)
+    (codec/get-field msg Item--price opts)
     )))
