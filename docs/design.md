@@ -162,6 +162,25 @@ The rule the two of them are an instance of: nothing on the per-message path
 may reach a process-wide mutable structure. A per-type fact belongs on the
 type.
 
+Since 0.3.0 the compiled arm's slots are readable from outside. `rt/slot`
+takes a message and an index, `rt/slot-of` gives a handle's index at
+generation time, and `rt/compiled-message?` is the guard that decides which
+branch generated code takes. That exists so a generated `proto->X` can read
+slots directly instead of calling `codec/get-field` per field — the emitter
+knows each field's type from the descriptor, so it can choose the conversion
+at generation time, and for most fields there is none to make because a slot
+already holds the Clojure value. It is the compiled arm's equivalent of what
+`interop=true` does through protoc's generated accessors.
+
+The price is that **slot representation is public contract from 0.3.0**.
+Generated files bake a conversion chosen from it, so changing what a slot
+holds is source-breaking for every file in existence, exactly like changing a
+contract symbol's signature. That is a heavier commitment than it looks, and
+it is the reason this is a deliberate 0.3.0 rather than a quiet addition —
+though note it constrains only the *contents* of a slot, not the layout
+around it, which changed twice in 0.2.x without touching what a slot holds.
+`//test:message_test`'s typed-read suite is where the promise is kept.
+
 The kill switch is a JVM system property, `clj-protobuf.codec=dynamic`,
 read once at load — `rt/message` runs when a generated namespace loads,
 under AOT or inside a native image, where binding a Var first is

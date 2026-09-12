@@ -97,3 +97,31 @@ message EnumHeavy {
   Status s8 = 9;
   repeated Status history = 10;
 }
+
+// A production-shaped payload: a reply wrapping a body-bearing message and a
+// list of line items. This is the one shape here sized like real traffic, and
+// it exists because every other shape in this file conflates the two terms
+// that dominate at ~1 KB. Driven from the bench two ways over the SAME wire
+// size: `realistic` puts its bulk in one filler string, `dense` spreads the
+// same byte count across four times the fields. Same bytes, 30 leaves against
+// 120, so the per-field and per-byte terms separate instead of moving together.
+//
+// Shape copied from clj-grpc's soak payload (bench/clj_grpc/soak/payload.clj)
+// so the two corpora's tables can sit side by side without a conversion step.
+message Reply {
+  string name = 1;
+  Payload payload = 2;
+}
+message Payload {
+  string id = 1;
+  string title = 2;
+  string body = 3;
+  int64 created_at = 4;
+  double score = 5;
+  repeated Item items = 6;
+}
+message Item {
+  string sku = 1;
+  int32 qty = 2;
+  double price = 3;
+}

@@ -338,6 +338,48 @@
           (is (= :parse (try (pb/decode proto partial-bytes) nil
                              (catch clojure.lang.ExceptionInfo e (:clj-protobuf/error (ex-data e)))))))))))
 
+(deftest the-typed-read-path-surface
+  ;; rt/compiled-message?, rt/slot and rt/slot-of are what generated code
+  ;; branches into instead of codec/get-field. What they expose is the slot
+  ;; REPRESENTATION, which from 0.3.0 is public contract: a generated file
+  ;; emits a conversion per field chosen from it at generation time, so
+  ;; changing what a slot holds is source-breaking for every file in
+  ;; existence. This suite is where that promise is kept.
+  (let [m (wp2/Wire->proto {:i32 -1 :i64 -2 :flt (float 1.5) :dbl 2.5 :flag true
+                            :str "s" :raw (byte-array [1 2 3]) :color :CLOSED_B
+                            :leaf {:id "x"} :unpacked [1 2 3] :by-id {1 {:id "y"}}})
+        slot-of-name (fn [nm] (rt/slot-of (rt/field wp2/Wire-prototype nm)))
+        at (fn [nm] (rt/slot m (slot-of-name nm)))]
+    (testing "the predicate distinguishes the arms"
+      (is (rt/compiled-message? m))
+      (is (not (rt/compiled-message? (dynamic wp2/Wire-prototype))))
+      (is (not (rt/compiled-message? "not a message"))))
+    (testing "slot-of agrees with the descriptor, and is nil off the compiled arm"
+      (is (= (.getIndex (fd (desc wp2/Wire-prototype) "i32")) (slot-of-name "i32")))
+      (is (nil? (rt/slot-of (rt/field (dynamic wp2/Wire-prototype) "i32")))))
+    (testing "every kind reads back in its documented representation"
+      (is (instance? Integer (at "i32")))
+      (is (instance? Long (at "i64")))
+      (is (instance? Float (at "flt")))
+      (is (instance? Double (at "dbl")))
+      (is (instance? Boolean (at "flag")))
+      (is (instance? String (at "str")))
+      (is (instance? ByteString (at "raw")))
+      (is (instance? Integer (at "color")) "an enum is its number, not a descriptor")
+      (is (= 2 (at "color")))
+      (is (rt/compiled-message? (at "leaf")) "a nested message is the compiled message")
+      (is (instance? java.util.ArrayList (at "unpacked")))
+      (is (instance? java.util.LinkedHashMap (at "by_id"))))
+    (testing "absent is nil"
+      (is (nil? (at "high")))
+      (is (nil? (at "pick_str"))))
+    (testing "a field without presence reads nil for its default, not the default"
+      ;; proto3's no-label scalars: the handle carries the default to
+      ;; substitute, which is why generated code needs slot-default's rule
+      ;; rather than the slot alone
+      (let [p3 (wp3/Wire->proto {:i32 0})]
+        (is (nil? (rt/slot p3 (rt/slot-of (rt/field wp3/Wire-prototype "i32")))))))))
+
 (deftest required-fields-through-a-cycle
   ;; A -> B (field 1) and A -> C (field 2); B -> A; C holds the required
   ;; field. Walking A reaches B FIRST, and B's only edge is back to A, which

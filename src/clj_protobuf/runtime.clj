@@ -511,3 +511,52 @@
                        :field field-name
                        :message (.getFullName descriptor)})))
     (make-handle prototype fd)))
+
+;; ---------------------------------------------------------------------------
+;; The typed read path's surface (0.3.0)
+;;
+;; Generated code reads a compiled message's slots directly rather than going
+;; through codec/get-field: a branch on compiled-message?, then one `slot` per
+;; field, with the conversion emitted per field at generation time because the
+;; emitter knows each field's type from the descriptor. Most fields need no
+;; conversion at all — a slot already holds the Clojure value.
+;;
+;; SLOT REPRESENTATION IS PUBLIC CONTRACT from 0.3.0. Generated files depend on
+;; it, so changing what a slot holds is source-breaking for every file in
+;; existence, exactly like changing a contract symbol's signature:
+;;
+;;   int32 kinds  Integer      int64 kinds  Long
+;;   float        Float        double       Double
+;;   bool         Boolean      string       String
+;;   bytes        ByteString   enum         Integer (the value's number)
+;;   message      the nested compiled message
+;;   repeated     java.util.ArrayList        map  java.util.LinkedHashMap
+;;   absent       nil — and, for a field without presence, nil also means the
+;;                default, which the caller substitutes
+;;
+;; Nothing here is hinted to a class this library defines: generated code that
+;; hinted one would break on the plain-clj leg, where the reflection gate
+;; reloads these namespaces in the same JVM (see CLAUDE.md).
+
+(defn compiled-message?
+  "True when msg is the compiled codec's own Message — the arm a prototype
+  takes when no generated Java class matches. The guard `slot` requires."
+  [msg]
+  (message/compiled-message? msg))
+
+(defn slot
+  "One slot of a compiled message, by index, in slot representation. nil is
+  absent; for a field without presence nil also means the default.
+
+  Guard every call with `compiled-message?`. This does not check, because the
+  whole point is to cost less than a field read through the codec, and a
+  message from another arm throws rather than answering — the same rule
+  `codec/get-field` documents for handles."
+  [msg ^long i]
+  (message/message-slot msg i))
+
+(defn slot-of
+  "The slot index this handle reads, or nil when its prototype is not on the
+  compiled arm. Read once at generation time, never on the hot path."
+  [^FieldHandle handle]
+  (.-slot handle))
