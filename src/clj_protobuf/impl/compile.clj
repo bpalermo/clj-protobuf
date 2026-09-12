@@ -244,13 +244,26 @@
                  fields))))))
 
 (defn- nested-parser-ref
-  "An IDeref of the nested type's own Parser. Two derefs rather than one
-  because descriptors are cyclic — the nested CompiledType may not exist when
-  this reader is built — and because the parser belongs to the type, so every
-  edge into it shares the one instance."
+  "An IDeref of the nested type's own Parser, resolved once and then held.
+
+  Two derefs are needed the first time and none after. The indirection exists
+  because descriptors are cyclic, so the nested CompiledType does not exist
+  when this reader is built and the parser belongs to the type rather than to
+  the edge; once the cycle has closed both are permanent, and paying for that
+  on every nested message read was 24 of 1,079 carrier samples in clj-grpc's
+  VT profile.
+
+  The race is benign in the way CompiledMessage's memoized size is: two
+  threads may resolve concurrently and both store, and what they store is the
+  same parser instance, because the type caches it in a delay of its own."
   [^CompiledField f]
-  (reify clojure.lang.IDeref
-    (deref [_] (deref (.-parser ^CompiledType (deref (.-nested f)))))))
+  (let [cached (java.util.concurrent.atomic.AtomicReference.)]
+    (reify clojure.lang.IDeref
+      (deref [_]
+        (or (.get cached)
+            (let [p (deref (.-parser ^CompiledType (deref (.-nested f))))]
+              (.set cached p)
+              p))))))
 
 (def ^:private dense-limit 4096)
 
