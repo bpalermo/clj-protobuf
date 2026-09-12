@@ -16,7 +16,7 @@
 
 ;; ---------------------------------------------------------------
 ;; messages
-(declare Leaf->proto Wire->proto proto->Leaf--map)
+(declare Leaf->proto Wire->proto proto->Leaf--map proto->Leaf--slot-map)
 ;;
 ;; The shape is known at codegen time, so the representation is too:
 ;; a defrecord per type, its FieldDescriptors resolved once into
@@ -43,11 +43,19 @@
   "protobuf -> a Leaf record. Absent fields are nil."
   ([msg] (proto->Leaf msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (if (and (nil? opts) (instance? com.acme.fixtures.wire.e2024.Leaf msg))
+   (cond
+     (and (nil? opts) (instance? com.acme.fixtures.wire.e2024.Leaf msg))
      (let [^com.acme.fixtures.wire.e2024.Leaf m msg]
        (->Leaf
         (when (.hasId m) (.getId m))
         ))
+
+     (and (nil? opts) (rt/compiled-message? msg))
+     (->Leaf
+      (rt/slot msg 0)
+      )
+
+     :else
      (->Leaf
       (codec/get-field msg Leaf--id opts)
       ))))
@@ -56,6 +64,14 @@
   the same values, minus the keys the codec's read leaves out."
   [^com.acme.fixtures.wire.e2024.Leaf m]
   (let [id--v (when (.hasId m) (.getId m))]
+    (if (some? id--v)
+      {:id id--v}
+      {})))
+(defn- proto->Leaf--slot-map
+  "Leaf as a plain map, read from the compiled arm's slots:
+  the same values, minus the keys the codec's read leaves out."
+  [msg]
+  (let [id--v (rt/slot msg 0)]
     (if (some? id--v)
       {:id id--v}
       {})))
@@ -109,7 +125,8 @@
   "protobuf -> a Wire record. Absent fields are nil."
   ([msg] (proto->Wire msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (if (and (nil? opts) (instance? com.acme.fixtures.wire.e2024.Wire msg))
+   (cond
+     (and (nil? opts) (instance? com.acme.fixtures.wire.e2024.Wire msg))
      (let [^com.acme.fixtures.wire.e2024.Wire m msg]
        (->Wire
         (when (.hasStr m) (.getStr m))
@@ -124,6 +141,23 @@
         (when (.hasClosed m) (case (.getNumber (.getClosed m)) 1 :CLOSED_A 2 :CLOSED_B (codec/get-field m Wire--closed nil)))
         (codec/get-field m Wire--closed-list nil)
         ))
+
+     (and (nil? opts) (rt/compiled-message? msg))
+     (->Wire
+      (rt/slot msg 0)
+      (rt/slot msg 1)
+      (let [^java.util.List l (rt/slot msg 2)] (when (and l (pos? (.size l))) (vec l)))
+      (let [^java.util.List l (rt/slot msg 3)] (when (and l (pos? (.size l))) (vec l)))
+      (when-some [v (rt/slot msg 4)] (proto->Leaf--slot-map v))
+      (when-some [v (rt/slot msg 5)] (proto->Leaf--slot-map v))
+      (let [v (rt/slot msg 6)] (if (nil? v) (int 0) v))
+      (rt/slot msg 7)
+      (when-some [v (rt/slot msg 8)] (case v 0 :OPEN_UNSPECIFIED 1 :OPEN_A (codec/get-field msg Wire--open nil)))
+      (when-some [v (rt/slot msg 9)] (case v 1 :CLOSED_A 2 :CLOSED_B (codec/get-field msg Wire--closed nil)))
+      (codec/get-field msg Wire--closed-list nil)
+      )
+
+     :else
      (->Wire
       (codec/get-field msg Wire--str opts)
       (codec/get-field msg Wire--checked opts)

@@ -52,7 +52,7 @@ bazel_dep(name = "rules_shell", version = "0.8.0", dev_dependency = True)
 # coverage — but //test:update_fixtures_test fails when they drift from what
 # this pinned version emits, and `bazel run //test:update_fixtures` rewrites
 # them. Bumping this version is the one step of a fixture refresh.
-bazel_dep(name = "protoc_gen_clojure", version = "0.6.0", dev_dependency = True)
+bazel_dep(name = "protoc_gen_clojure", version = "0.7.0", dev_dependency = True)
 
 plugin = use_extension(
     "@protoc_gen_clojure//clojure:extensions.bzl",
