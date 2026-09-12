@@ -81,4 +81,12 @@
 ;; Also here, neither consumer-visible: the benchmark gained the two
 ;; production-shaped tiers it never had (1 KB at 30 leaves and at 120), and
 ;; //bench:option_c measures the ceiling of the whole typed-read family.
-{:version "0.3.0"}
+;; 0.3.1: documentation only — the published source is otherwise identical to
+;; 0.3.0, and nothing needs this release. It exists because rt/slot-of's
+;; docstring now states the guarantee generated code actually relies on: the
+;; index is the field's DECLARATION index in its descriptor, (.getIndex fd),
+;; never an internal ordering, so a generator holding the descriptor may bake
+;; the literal and skip the call. protoc-gen-clojure 0.7.0 does exactly that,
+;; and it works against 0.3.0 — this only puts the promise in the artifact a
+;; consumer reads rather than leaving it in this repo's tests and docs.
+{:version "0.3.1"}
