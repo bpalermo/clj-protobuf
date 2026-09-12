@@ -179,7 +179,15 @@ contract symbol's signature. That is a heavier commitment than it looks, and
 it is the reason this is a deliberate 0.3.0 rather than a quiet addition —
 though note it constrains only the *contents* of a slot, not the layout
 around it, which changed twice in 0.2.x without touching what a slot holds.
-`//test:message_test`'s typed-read suite is where the promise is kept.
+The index is part of that promise: it is the field's declaration index,
+`(.getIndex fd)`, never an ordering internal to this library, so a generator
+that already holds the descriptor can bake the literal rather than call
+`rt/slot-of` at load time. There is no runtime assertion of that equivalence
+because the handle's slot is derived from `.getIndex`, so the check would
+compare a value against its own source; what can genuinely break is the
+compiler's slot array ceasing to be indexed by declaration order, and that is
+what the test checks. `//test:message_test`'s typed-read suite is where the
+promise is kept.
 
 The kill switch is a JVM system property, `clj-protobuf.codec=dynamic`,
 read once at load — `rt/message` runs when a generated namespace loads,

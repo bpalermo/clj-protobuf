@@ -14,6 +14,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [clj-protobuf.core :as pb]
+            [clj-protobuf.codec :as codec]
             [clj-protobuf.impl.message :as message]
             [clj-protobuf.runtime :as rt]
             [fixtures.e2024.kitchen :as kitchen]
@@ -373,6 +374,27 @@
     (testing "absent is nil"
       (is (nil? (at "high")))
       (is (nil? (at "pick_str"))))
+    (testing "the index IS the descriptor's declaration index, for every field"
+      ;; What a generator bakes. There is no point asserting this inside
+      ;; make-handle — the slot is derived from .getIndex there, so the check
+      ;; would compare a value with its own source. What can actually break is
+      ;; the compiler's slot array ceasing to be indexed by declaration order,
+      ;; which is what the third assertion below would catch.
+      (let [d (desc wp2/Wire-prototype)
+            fields (.getFields d)
+            indices (mapv (fn [^Descriptors$FieldDescriptor f]
+                            (rt/slot-of (rt/field wp2/Wire-prototype (.getName f))))
+                          fields)]
+        (is (= (mapv (fn [^Descriptors$FieldDescriptor f] (.getIndex f)) fields) indices)
+            "slot-of agrees with .getIndex field by field")
+        (is (= (vec (range (count fields))) (sort indices))
+            "and the indices are exactly 0..n-1, so nothing is shared or skipped")
+        (doseq [nm ["i32" "i64" "flt" "dbl" "flag" "str"]]
+          ;; these kinds have the same representation in a slot as through the
+          ;; codec, so the index landing on the wrong field would show here
+          (let [h (rt/field wp2/Wire-prototype nm)]
+            (is (= (codec/get-field m h) (rt/slot m (rt/slot-of h)))
+                (str nm ": the slot at that index holds that field's value"))))))
     (testing "a field without presence reads nil for its default, not the default"
       ;; proto3's no-label scalars: the handle carries the default to
       ;; substitute, which is why generated code needs slot-default's rule
