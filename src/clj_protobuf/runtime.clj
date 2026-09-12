@@ -534,6 +534,23 @@
 ;;   absent       nil — and, for a field without presence, nil also means the
 ;;                default, which the caller substitutes
 ;;
+;; THE INDEX IS THE FIELD'S DECLARATION INDEX, `(.getIndex fd)` — the position
+;; of the field in its message's declaration order, not a field number and not
+;; any ordering internal to this library. That is contract from 0.3.0 alongside
+;; the representation above, and it is what lets a generator bake the index as
+;; a literal at generation time instead of calling `slot-of` at load time:
+;; the emitter already has the descriptor, so it already has the index.
+;; `slot-of` remains for code holding a handle but not a descriptor.
+;;
+;; There is deliberately no runtime assertion that the two agree, because the
+;; handle's slot is DERIVED from `(.getIndex fd)` a few lines below — such a
+;; check would compare a value against its own source and pass forever. What
+;; can actually break is the compiler's slot array ceasing to be indexed by
+;; declaration order, so that is what `//test:message_test` checks: every
+;; field's index against its descriptor, the indices forming exactly 0..n-1,
+;; and the value at each index agreeing with what the codec reads for that
+;; field.
+;;
 ;; Nothing here is hinted to a class this library defines: generated code that
 ;; hinted one would break on the plain-clj leg, where the reflection gate
 ;; reloads these namespaces in the same JVM (see CLAUDE.md).
@@ -557,6 +574,11 @@
 
 (defn slot-of
   "The slot index this handle reads, or nil when its prototype is not on the
-  compiled arm. Read once at generation time, never on the hot path."
+  compiled arm. Read once at generation time, never on the hot path.
+
+  The index is the field's declaration index in its descriptor — exactly
+  `(.getIndex fd)` — so a generator that already has the descriptor may bake
+  the literal and never call this at all. Generated files are checked in and
+  long-lived, so that equivalence is contract, not an implementation detail."
   [^FieldHandle handle]
   (.-slot handle))
