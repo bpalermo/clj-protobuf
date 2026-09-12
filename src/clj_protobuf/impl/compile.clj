@@ -67,6 +67,13 @@
             key-type        ; map key type name
             val-type        ; map value type name
             val-enum-type   ; map value EnumDescriptor, enum-valued maps only
+            enum-numbers    ; {keyword -> Integer}, enum kind only: what a
+                            ; write-side coercion needs to turn a Clojure enum
+                            ; into its slot representation without a pool
+                            ; lookup and a string concat per call
+            key-kind        ; map fields: the entry key's kind keyword
+            val-kind        ; map fields: the entry value's kind keyword
+            val-enum-numbers ; {keyword -> Integer}, enum-valued maps only
             nested])        ; delay of the nested CompiledType (message kind; map: the value type)
 
 (defrecord CompiledType
@@ -114,6 +121,18 @@
       (if (instance? Descriptors$EnumValueDescriptor d)
         (Integer/valueOf (.getNumber ^Descriptors$EnumValueDescriptor d))
         d))))
+
+(defn- enum-number-table
+  "{keyword -> Integer} for an enum descriptor, built once per field. Aliased
+  values resolve through findValueByNumber so every name that shares a number
+  maps to the number that number reads back as — the rule 0.2.3 established
+  for the read side, applied to the write side."
+  [^Descriptors$EnumDescriptor et]
+  (when et
+    (into {}
+          (map (fn [^Descriptors$EnumValueDescriptor v]
+                 [(keyword (.getName v)) (Integer/valueOf (.getNumber v))]))
+          (.getValues et))))
 
 (defn- known-numbers
   "For a closed enum, the set of declared numbers; nil for open enums,
@@ -185,6 +204,11 @@
       :key-type (when map-field (type-name key-fd))
       :val-type (when map-field (type-name val-fd))
       :val-enum-type (when (and map-field (= :enum (kind-of val-fd))) (.getEnumType val-fd))
+      :enum-numbers (when (= kind :enum) (enum-number-table (.getEnumType fd)))
+      :key-kind (when map-field (kind-of key-fd))
+      :val-kind (when map-field (kind-of val-fd))
+      :val-enum-numbers (when (and map-field (= :enum (kind-of val-fd)))
+                          (enum-number-table (.getEnumType val-fd)))
       :nested (cond
                 map-field (when (= :message (kind-of val-fd)) (nested-of (.getMessageType val-fd)))
                 (= kind :message) (nested-of (.getMessageType fd)))})))
@@ -244,13 +268,26 @@
                  fields))))))
 
 (defn- nested-parser-ref
-  "An IDeref of the nested type's own Parser. Two derefs rather than one
-  because descriptors are cyclic — the nested CompiledType may not exist when
-  this reader is built — and because the parser belongs to the type, so every
-  edge into it shares the one instance."
+  "An IDeref of the nested type's own Parser, resolved once and then held.
+
+  Two derefs are needed the first time and none after. The indirection exists
+  because descriptors are cyclic, so the nested CompiledType does not exist
+  when this reader is built and the parser belongs to the type rather than to
+  the edge; once the cycle has closed both are permanent, and paying for that
+  on every nested message read was 24 of 1,079 carrier samples in clj-grpc's
+  VT profile.
+
+  The race is benign in the way CompiledMessage's memoized size is: two
+  threads may resolve concurrently and both store, and what they store is the
+  same parser instance, because the type caches it in a delay of its own."
   [^CompiledField f]
-  (reify clojure.lang.IDeref
-    (deref [_] (deref (.-parser ^CompiledType (deref (.-nested f)))))))
+  (let [cached (java.util.concurrent.atomic.AtomicReference.)]
+    (reify clojure.lang.IDeref
+      (deref [_]
+        (or (.get cached)
+            (let [p (deref (.-parser ^CompiledType (deref (.-nested f))))]
+              (.set cached p)
+              p))))))
 
 (def ^:private dense-limit 4096)
 

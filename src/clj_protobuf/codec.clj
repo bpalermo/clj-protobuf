@@ -28,16 +28,18 @@
   ;; a record class requires the namespace that defines it to have been loaded.
   (:require [clj-protobuf.impl.message :as message]
             [clj-protobuf.runtime])
-  (:import [clj_protobuf.runtime FieldHandle]
+  (:import [clj_protobuf.impl.compile CompiledField CompiledType]
+           [clj_protobuf.runtime FieldHandle]
            [clojure.lang PersistentArrayMap]
            [com.google.protobuf
             ByteString
+            Descriptors$Descriptor
             Descriptors$EnumDescriptor
             Descriptors$EnumValueDescriptor
             Descriptors$FieldDescriptor
             Message
             Message$Builder]
-           [java.util Arrays LinkedHashMap]
+           [java.util ArrayList Arrays LinkedHashMap List]
            [java.util.function BiFunction Function]))
 
 (set! *warn-on-reflection* true)
@@ -371,3 +373,143 @@
                         (.apply ^Function g m)
                         (.getField m fd))
                       opts)))))))
+
+;; ---------------------------------------------------------------------------
+;; The typed write path's surface (0.4.0)
+;;
+;; The mirror of rt/slot, and deliberately not symmetric with it. A read could
+;; hand back the slot as it stood, because a slot already holds the Clojure
+;; value; a write cannot, because a record's :n may be a Long where an int32
+;; slot must hold an Integer. So the COERCION LIVES HERE rather than in
+;; emitted code, and that is the whole design:
+;;
+;; - a coercion baked into checked-in generated files is a contract nobody can
+;;   change afterwards; behind this symbol it is a patch release.
+;; - the elision rule for a field without presence compares the slot's default
+;;   with .equals, and Integer(0).equals(Long(0)) is FALSE — so an uncoerced
+;;   Clojure 0 would be stored live and serialize a field protobuf says must
+;;   not appear. A byte difference, which only //test:byte_identity_test would
+;;   have caught.
+;; - nil clears a oneof's siblings, so emitted code writing a oneof's members
+;;   in declaration order with a nil among them would clear the member it just
+;;   set. This ignores nil instead, so every generated file cannot get that
+;;   wrong rather than each one having to get it right.
+;;
+;; Emitted code therefore says WHICH field and nothing about how the
+;; representation works.
+
+(defn- slot-mismatch [^CompiledField f v expected]
+  (let [fd ^Descriptors$FieldDescriptor (.-fd f)]
+    (throw (ex-info (str "field " (.getFullName fd) " expects " expected ", got "
+                         (some-> v class (.getName)))
+                    {:clj-protobuf/error :type-mismatch
+                     :field (.getFullName fd)
+                     :expected expected
+                     :value v}))))
+
+(defn- slot-enum
+  "A Clojure enum value to its number. The keyword table is precomputed per
+  field; the other shapes stay accepted because set-field! accepts them."
+  [^CompiledField f v]
+  (or (cond
+        (keyword? v) (get (.-enum-numbers f) v)
+        (number? v) (Integer/valueOf (.intValue ^Number v))
+        (instance? Descriptors$EnumValueDescriptor v)
+        (Integer/valueOf (.getNumber ^Descriptors$EnumValueDescriptor v))
+        (string? v) (when-let [evd ^Descriptors$EnumValueDescriptor
+                               (.findValueByName ^Descriptors$EnumDescriptor (.-enum-type f)
+                                                 ^String v)]
+                      (Integer/valueOf (.getNumber evd)))
+        :else nil)
+      (slot-mismatch f v (str "a value of enum "
+                              (.getFullName ^Descriptors$EnumDescriptor (.-enum-type f))))))
+
+(defn- slot-message
+  "A nested message for a slot, verified and repaired rather than trusted.
+
+  Emitted code calls the nested X->proto, which builds through that type's OWN
+  prototype — resolved independently of this one — so with generated classes
+  present for one file and absent for another it can hand back a generated
+  Java message where a slot must hold a compiled one. The emitter cannot
+  promise otherwise, so this refuses to store a wrong one: identical descriptor
+  on a compiled message is the fast path, the same type in another
+  representation is rebuilt, and anything else is an error naming the field.
+  Exactly what message-value does for set-field!, on the same grounds."
+  [^CompiledField f v]
+  (let [^CompiledType nt (deref (.-nested f))
+        ^Descriptors$Descriptor d (.-descriptor nt)]
+    (cond
+      (and (message/compiled-message? v)
+           (identical? (.getDescriptorForType ^Message v) d))
+      v
+
+      (and (instance? Message v)
+           (= (.getFullName ^Descriptors$Descriptor (.getDescriptorForType ^Message v))
+              (.getFullName d)))
+      (-> (.newBuilderForType ^Message (message/prototype d))
+          (.mergeFrom ^Message v)
+          (.build))
+
+      :else (slot-mismatch f v (str "a " (.getFullName d))))))
+
+(defn- slot-scalar
+  "One value in slot representation, for a field of this kind."
+  [^CompiledField f kind v]
+  (case kind
+    :int     (if (number? v) (Integer/valueOf (.intValue ^Number v)) (slot-mismatch f v "a number"))
+    :long    (if (number? v) (Long/valueOf (.longValue ^Number v)) (slot-mismatch f v "a number"))
+    :float   (if (number? v) (Float/valueOf (.floatValue ^Number v)) (slot-mismatch f v "a number"))
+    :double  (if (number? v) (Double/valueOf (.doubleValue ^Number v)) (slot-mismatch f v "a number"))
+    :boolean (if (boolean? v) v (slot-mismatch f v "a boolean"))
+    :string  (if (string? v) v (slot-mismatch f v "a string"))
+    :bytes   (cond
+               (bytes? v) (ByteString/copyFrom ^bytes v)
+               (instance? ByteString v) v
+               :else (slot-mismatch f v "a byte array or ByteString"))
+    :enum    (slot-enum f v)
+    :message (slot-message f v)))
+
+(defn slot-set!
+  "Coerce a Clojure value and store it in a compiled builder's slot, named by
+  the field's declaration index — `(.getIndex fd)`, the same index rt/slot
+  reads and rt/slot-of reports, which a generator bakes as a literal.
+
+  nil is ignored, so emitted code is one unguarded call per field. That is not
+  a convenience: writing nil would clear a oneof's siblings, so a generated
+  file writing a oneof's members in order would clear the one it had just set.
+
+  Default elision for fields without presence and oneof clearing are NOT done
+  here — set-slot! already does both, correctly, and a second implementation
+  is how they drift apart."
+  [builder ^long i v]
+  (when (some? v)
+    (let [^CompiledField f (message/builder-field builder i)]
+      (message/set-slot!
+       builder i
+       (cond
+         (.-repeated? f)
+         (if (sequential? v)
+           (let [out (ArrayList. (count v))
+                 kind (.-kind f)]
+             (reduce (fn [_ x] (.add out (slot-scalar f kind x))) nil v)
+             out)
+           (slot-mismatch f v "a sequential collection"))
+
+         (.-map? f)
+         (if (map? v)
+           (let [out (LinkedHashMap. (int (count v)))
+                 kk (.-key-kind f)
+                 vk (.-val-kind f)]
+             (reduce-kv (fn [_ k x]
+                          (.put out
+                                (slot-scalar f kk k)
+                                (if (identical? :enum vk)
+                                  (or (get (.-val-enum-numbers f) x)
+                                      (slot-scalar f vk x))
+                                  (slot-scalar f vk x))))
+                        nil v)
+             out)
+           (slot-mismatch f v "a map"))
+
+         :else (slot-scalar f (.-kind f) v)))))
+  builder)
