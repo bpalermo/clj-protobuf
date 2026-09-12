@@ -85,25 +85,38 @@ row:
 
 | shape | java | hinted | interop | compiled | jsonista | data.json |
 |---|---|---|---|---|---|---|
-| tiny | 67 ns / 96 B | 152 ns / 136 B | 85 ns / 136 B | 236 ns / 192 B | 347 ns / 608 B | 823 ns / 624 B |
-| flat | 602 ns / 400 B | 978 ns / 488 B | 627 ns / 400 B | 905 ns / 440 B | 1.09 µs / 1264 B | 2.93 µs / 2208 B |
-| deep | — | 756 ns / 552 B | 384 ns / 368 B | 862 ns / 560 B | 658 ns / 1048 B | 2.62 µs / 1392 B |
-| wide-repeated | — | 3.51 µs / 3088 B | 3.33 µs / 3088 B | 2.64 µs / 2088 B | 2.54 µs / 1112 B | 6.44 µs / 4216 B |
-| repeated-messages | 2.07 µs / 2344 B | 4.44 µs / 2824 B | 4.38 µs / 2824 B | 5.36 µs / 3000 B | 3.80 µs / 4040 B | 16.30 µs / 10424 B |
-| map-heavy | — | 8.05 µs / 7512 B | 7.55 µs / 7512 B | 5.74 µs / 4736 B | 3.70 µs / 3632 B | 11.98 µs / 10720 B |
-| enum-heavy | — | 1.31 µs / 480 B | 1.30 µs / 480 B | 1.10 µs / 336 B | 1.43 µs / 1184 B | 3.92 µs / 2952 B |
+| tiny | 67 ns / 96 B | 148 ns / 136 B | 88 ns / 136 B | 250 ns / 192 B | 375 ns / 576 B | 922 ns / 624 B |
+| flat | 620 ns / 400 B | 918 ns / 488 B | 588 ns / 400 B | 1.16 µs / 440 B | 1.11 µs / 1248 B | 3.36 µs / 2208 B |
+| deep | — | 802 ns / 552 B | 386 ns / 368 B | 819 ns / 560 B | 770 ns / 1048 B | 2.42 µs / 1392 B |
+| wide-repeated | — | 3.27 µs / 3088 B | 3.41 µs / 3088 B | 3.07 µs / 2088 B | 2.41 µs / 1112 B | 6.89 µs / 4216 B |
+| repeated-messages | 2.06 µs / 2312 B | 4.60 µs / 2840 B | 4.50 µs / 2840 B | 5.56 µs / 3000 B | 3.95 µs / 4040 B | 18.32 µs / 10424 B |
+| map-heavy | — | 8.06 µs / 7512 B | 8.66 µs / 7512 B | 6.29 µs / 4736 B | 4.99 µs / 3632 B | 13.16 µs / 10720 B |
+| enum-heavy | — | 1.20 µs / 480 B | 1.20 µs / 480 B | 1.08 µs / 336 B | 1.40 µs / 1184 B | 4.48 µs / 2952 B |
+| realistic | — | 3.73 µs / 3672 B | 3.32 µs / 3576 B | 3.86 µs / 3528 B | 4.82 µs / 4040 B | 12.66 µs / 8904 B |
+| dense | — | 10.38 µs / 7760 B | 10.03 µs / 7664 B | 13.11 µs / 7496 B | 12.57 µs / 11272 B | 40.08 µs / 24880 B |
 
 ### Decode (bytes → Clojure data)
 
 | shape | java | hinted | interop | compiled | jsonista | data.json |
 |---|---|---|---|---|---|---|
-| tiny | 67 ns / 192 B | 176 ns / 232 B | 102 ns / 232 B | 205 ns / 216 B | 628 ns / 1136 B | 659 ns / 1584 B |
-| flat | 348 ns / 432 B | 771 ns / 600 B | 455 ns / 600 B | 539 ns / 520 B | 1.98 µs / 2168 B | 2.98 µs / 5776 B |
-| deep | — | 860 ns / 1024 B | 355 ns / 1024 B | 671 ns / 760 B | 1.28 µs / 2128 B | 1.24 µs / 3840 B |
-| wide-repeated | — | 2.80 µs / 4352 B | 2.85 µs / 4352 B | 2.90 µs / 4208 B | 3.43 µs / 4144 B | 3.05 µs / 11496 B |
-| repeated-messages | 1.77 µs / 3312 B | 5.73 µs / 5344 B | 2.55 µs / 5336 B | 4.72 µs / 4704 B | 10.81 µs / 10920 B | 9.95 µs / 25096 B |
-| map-heavy | — | 12.21 µs / 13048 B | 11.84 µs / 13032 B | 10.68 µs / 10032 B | 8.55 µs / 5776 B | 13.97 µs / 22248 B |
-| enum-heavy | — | 2.17 µs / 1056 B | 1.29 µs / 1056 B | 1.95 µs / 856 B | 2.22 µs / 2880 B | 2.57 µs / 7200 B |
+| tiny | 81 ns / 192 B | 159 ns / 232 B | 95 ns / 232 B | 165 ns / 216 B | 673 ns / 1136 B | 768 ns / 1584 B |
+| flat | 372 ns / 432 B | 736 ns / 600 B | 439 ns / 600 B | 597 ns / 520 B | 2.17 µs / 2208 B | 3.56 µs / 5816 B |
+| deep | — | 756 ns / 1024 B | 459 ns / 1024 B | 681 ns / 760 B | 1.19 µs / 2048 B | 1.18 µs / 3840 B |
+| wide-repeated | — | 3.40 µs / 4328 B | 3.36 µs / 4328 B | 3.26 µs / 4208 B | 3.41 µs / 4144 B | 3.34 µs / 11496 B |
+| repeated-messages | 1.72 µs / 3328 B | 4.99 µs / 5360 B | 2.92 µs / 5352 B | 5.08 µs / 4704 B | 11.10 µs / 10120 B | 11.71 µs / 25096 B |
+| map-heavy | — | 11.78 µs / 13088 B | 11.72 µs / 13072 B | 11.06 µs / 10072 B | 8.46 µs / 5776 B | 13.77 µs / 22288 B |
+| enum-heavy | — | 2.07 µs / 1056 B | 1.49 µs / 1056 B | 1.86 µs / 856 B | 2.15 µs / 2880 B | 2.43 µs / 7240 B |
+| realistic | — | 3.24 µs / 4280 B | 1.96 µs / 4272 B | 2.72 µs / 3664 B | 7.65 µs / 6872 B | 11.57 µs / 18768 B |
+| dense | — | 10.97 µs / 11648 B | 6.83 µs / 11640 B | 9.81 µs / 10144 B | 22.17 µs / 19760 B | 34.15 µs / 57016 B |
+
+The last two rows are one message at production size carried two ways, and
+they are the only rows here that separate the two things that drive cost.
+`realistic` is 1025 bytes across 30 leaf values with its bulk in a single
+string; `dense` is 1030 bytes across 120, spread over many small line items.
+Almost the same wire size, four times the fields — and on the compiled arm
+decode goes from 2.72 µs to 9.81 µs, a factor of 3.6 against a field ratio of
+4. **Cost tracks field count, not bytes.** A large value is close to free per
+byte; every field is not. Size a message by counting its fields.
 
 `quick` trades accuracy for time, and the sub-100-ns cells move between runs
 of it — the `java` column on `tiny` decode has come out anywhere from 65 to
@@ -133,15 +146,18 @@ protobuf-java versions the consumer actually builds with.
 
 Read it honestly. Against protoc's own generated code the hinted arm is
 roughly 2× on tiny messages and closer on wider ones; the compiled arm is
-within 1.6× of the hinted arm at worst and beats it on most decode shapes,
+within 1.7× of the hinted arm at worst and beats it on most decode shapes,
 because a slot read is cheaper than a typed-accessor call. `interop=true`
 beats the hinted arm everywhere except the two collection-heavy decode rows,
 where they are a wash — building the Clojure collection is the row, not the
 accessor — and it allocates exactly what the hinted arm does, since both
-produce the same Clojure values from the same generated classes. Against JSON,
-protobuf wins both directions on the small and nested shapes and wins decode
-on lists of messages, while jackson wins encoding every collection-heavy
-shape and also wins map-heavy decode — building a 50-entry Clojure map is
+produce the same Clojure values from the same generated classes. Against JSON, and this is the
+comparison the production rows change: at ~1 KB protobuf wins both
+directions and decode by a wide margin — 2.72 µs against jackson's 7.65 on
+`realistic`, 9.81 against 22.17 on `dense`. On the smaller archetypes it is
+narrower: protobuf wins both directions on the small and nested shapes and
+wins decode on lists of messages, while jackson wins encoding every
+collection-heavy shape and also wins map-heavy decode — building a 50-entry Clojure map is
 most of that row, and protobuf pays for entry messages on top. Before 0.2.0
 the arm without generated classes was `DynamicMessage`, two to three times
 slower than the compiled one on decode. Wire compactness and schema are
