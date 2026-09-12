@@ -16,7 +16,7 @@
 
 ;; ---------------------------------------------------------------
 ;; messages
-(declare Leaf->proto Wire->proto Wire-Grp->proto Wire-Grps->proto Required->proto proto->Leaf--map)
+(declare Leaf->proto Wire->proto Wire-Grp->proto Wire-Grps->proto Required->proto proto->Leaf--map proto->Leaf--slot-map proto->Wire-Grp--slot-map proto->Wire-Grps--slot-map)
 ;;
 ;; The shape is known at codegen time, so the representation is too:
 ;; a defrecord per type, its FieldDescriptors resolved once into
@@ -43,11 +43,19 @@
   "protobuf -> a Leaf record. Absent fields are nil."
   ([msg] (proto->Leaf msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (if (and (nil? opts) (instance? com.acme.fixtures.wire.p2.Leaf msg))
+   (cond
+     (and (nil? opts) (instance? com.acme.fixtures.wire.p2.Leaf msg))
      (let [^com.acme.fixtures.wire.p2.Leaf m msg]
        (->Leaf
         (when (.hasId m) (.getId m))
         ))
+
+     (and (nil? opts) (rt/compiled-message? msg))
+     (->Leaf
+      (rt/slot msg 0)
+      )
+
+     :else
      (->Leaf
       (codec/get-field msg Leaf--id opts)
       ))))
@@ -56,6 +64,14 @@
   the same values, minus the keys the codec's read leaves out."
   [^com.acme.fixtures.wire.p2.Leaf m]
   (let [id--v (when (.hasId m) (.getId m))]
+    (if (some? id--v)
+      {:id id--v}
+      {})))
+(defn- proto->Leaf--slot-map
+  "Leaf as a plain map, read from the compiled arm's slots:
+  the same values, minus the keys the codec's read leaves out."
+  [msg]
+  (let [id--v (rt/slot msg 0)]
     (if (some? id--v)
       {:id id--v}
       {})))
@@ -193,7 +209,8 @@
   "protobuf -> a Wire record. Absent fields are nil."
   ([msg] (proto->Wire msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (if (and (nil? opts) (instance? com.acme.fixtures.wire.p2.Wire msg))
+   (cond
+     (and (nil? opts) (instance? com.acme.fixtures.wire.p2.Wire msg))
      (let [^com.acme.fixtures.wire.p2.Wire m msg]
        (->Wire
         (when (.hasI32 m) (.getI32 m))
@@ -236,6 +253,51 @@
         (when (.hasHigh m) (.getHigh m))
         (when (.hasHuge m) (.getHuge m))
         ))
+
+     (and (nil? opts) (rt/compiled-message? msg))
+     (->Wire
+      (rt/slot msg 0)
+      (rt/slot msg 1)
+      (rt/slot msg 2)
+      (rt/slot msg 3)
+      (rt/slot msg 4)
+      (rt/slot msg 5)
+      (rt/slot msg 6)
+      (rt/slot msg 7)
+      (rt/slot msg 8)
+      (rt/slot msg 9)
+      (rt/slot msg 10)
+      (rt/slot msg 11)
+      (rt/slot msg 12)
+      (rt/slot msg 13)
+      (when-some [v (rt/slot msg 14)] (.toByteArray ^com.google.protobuf.ByteString v))
+      (when-some [v (rt/slot msg 15)] (case v 0 :CLOSED_UNSPECIFIED 1 :CLOSED_A 2 :CLOSED_B (codec/get-field msg Wire--color nil)))
+      (when-some [v (rt/slot msg 16)] (proto->Leaf--slot-map v))
+      (let [^java.util.List l (rt/slot msg 17)] (when (and l (pos? (.size l))) (vec l)))
+      (let [^java.util.List l (rt/slot msg 18)] (when (and l (pos? (.size l))) (vec l)))
+      (let [^java.util.List l (rt/slot msg 19)] (when (and l (pos? (.size l))) (vec l)))
+      (let [^java.util.List l (rt/slot msg 20)] (when (and l (pos? (.size l))) (vec l)))
+      (codec/get-field msg Wire--colors nil)
+      (let [^java.util.List l (rt/slot msg 22)] (when (and l (pos? (.size l))) (persistent! (reduce (fn [acc v] (conj! acc (proto->Leaf--slot-map v))) (transient []) l))))
+      (let [^java.util.List l (rt/slot msg 23)] (when (and l (pos? (.size l))) (vec l)))
+      (let [^java.util.Map jm (rt/slot msg 24)] (when (and jm (pos? (.size jm))) (persistent! (reduce (fn [acc ^java.util.Map$Entry e] (assoc! acc (.getKey e) (proto->Leaf--slot-map (.getValue e)))) (transient {}) (.entrySet jm)))))
+      (codec/get-field msg Wire--by-color nil)
+      (rt/slot msg 26)
+      (rt/slot msg 27)
+      (when-some [v (rt/slot msg 28)] (proto->Leaf--slot-map v))
+      (rt/slot msg 29)
+      (rt/slot msg 30)
+      (when-some [v (rt/slot msg 31)] (case v 0 :CLOSED_UNSPECIFIED 1 :CLOSED_A 2 :CLOSED_B (codec/get-field msg Wire--dflt-enum nil)))
+      (when-some [v (rt/slot msg 32)] (proto->Wire-Grp--slot-map v))
+      (let [^java.util.List l (rt/slot msg 33)] (when (and l (pos? (.size l))) (persistent! (reduce (fn [acc v] (conj! acc (proto->Wire-Grps--slot-map v))) (transient []) l))))
+      (rt/slot msg 34)
+      (rt/slot msg 35)
+      (codec/get-field msg Wire--aliased nil)
+      (rt/slot msg 37)
+      (rt/slot msg 38)
+      )
+
+     :else
      (->Wire
       (codec/get-field msg Wire--i32 opts)
       (codec/get-field msg Wire--i64 opts)
@@ -297,14 +359,30 @@
   "protobuf -> a Wire-Grp record. Absent fields are nil."
   ([msg] (proto->Wire-Grp msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (if (and (nil? opts) (instance? com.acme.fixtures.wire.p2.Wire$Grp msg))
+   (cond
+     (and (nil? opts) (instance? com.acme.fixtures.wire.p2.Wire$Grp msg))
      (let [^com.acme.fixtures.wire.p2.Wire$Grp m msg]
        (->Wire-Grp
         (when (.hasNote m) (.getNote m))
         ))
+
+     (and (nil? opts) (rt/compiled-message? msg))
+     (->Wire-Grp
+      (rt/slot msg 0)
+      )
+
+     :else
      (->Wire-Grp
       (codec/get-field msg Wire-Grp--note opts)
       ))))
+(defn- proto->Wire-Grp--slot-map
+  "Wire-Grp as a plain map, read from the compiled arm's slots:
+  the same values, minus the keys the codec's read leaves out."
+  [msg]
+  (let [note--v (rt/slot msg 0)]
+    (if (some? note--v)
+      {:note note--v}
+      {})))
 
 (defrecord Wire-Grps [n])
 (def Wire-Grps-prototype (rt/message file-descriptor "Wire.Grps" "com.acme.fixtures.wire.p2.Wire$Grps"))
@@ -325,14 +403,30 @@
   "protobuf -> a Wire-Grps record. Absent fields are nil."
   ([msg] (proto->Wire-Grps msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (if (and (nil? opts) (instance? com.acme.fixtures.wire.p2.Wire$Grps msg))
+   (cond
+     (and (nil? opts) (instance? com.acme.fixtures.wire.p2.Wire$Grps msg))
      (let [^com.acme.fixtures.wire.p2.Wire$Grps m msg]
        (->Wire-Grps
         (when (.hasN m) (.getN m))
         ))
+
+     (and (nil? opts) (rt/compiled-message? msg))
+     (->Wire-Grps
+      (rt/slot msg 0)
+      )
+
+     :else
      (->Wire-Grps
       (codec/get-field msg Wire-Grps--n opts)
       ))))
+(defn- proto->Wire-Grps--slot-map
+  "Wire-Grps as a plain map, read from the compiled arm's slots:
+  the same values, minus the keys the codec's read leaves out."
+  [msg]
+  (let [n--v (rt/slot msg 0)]
+    (if (some? n--v)
+      {:n n--v}
+      {})))
 
 (defrecord Required [id n])
 (def Required-prototype (rt/message file-descriptor "Required" "com.acme.fixtures.wire.p2.Required"))
@@ -356,12 +450,21 @@
   "protobuf -> a Required record. Absent fields are nil."
   ([msg] (proto->Required msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (if (and (nil? opts) (instance? com.acme.fixtures.wire.p2.Required msg))
+   (cond
+     (and (nil? opts) (instance? com.acme.fixtures.wire.p2.Required msg))
      (let [^com.acme.fixtures.wire.p2.Required m msg]
        (->Required
         (when (.hasId m) (.getId m))
         (when (.hasN m) (.getN m))
         ))
+
+     (and (nil? opts) (rt/compiled-message? msg))
+     (->Required
+      (rt/slot msg 0)
+      (rt/slot msg 1)
+      )
+
+     :else
      (->Required
       (codec/get-field msg Required--id opts)
       (codec/get-field msg Required--n opts)

@@ -16,7 +16,7 @@
 
 ;; ---------------------------------------------------------------
 ;; messages
-(declare Leaf->proto Wire->proto proto->Leaf--map)
+(declare Leaf->proto Wire->proto proto->Leaf--map proto->Leaf--slot-map)
 ;;
 ;; The shape is known at codegen time, so the representation is too:
 ;; a defrecord per type, its FieldDescriptors resolved once into
@@ -43,11 +43,19 @@
   "protobuf -> a Leaf record. Absent fields are nil."
   ([msg] (proto->Leaf msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (if (and (nil? opts) (instance? com.acme.fixtures.wire.p3.Leaf msg))
+   (cond
+     (and (nil? opts) (instance? com.acme.fixtures.wire.p3.Leaf msg))
      (let [^com.acme.fixtures.wire.p3.Leaf m msg]
        (->Leaf
         (.getId m)
         ))
+
+     (and (nil? opts) (rt/compiled-message? msg))
+     (->Leaf
+      (let [v (rt/slot msg 0)] (if (nil? v) "" v))
+      )
+
+     :else
      (->Leaf
       (codec/get-field msg Leaf--id opts)
       ))))
@@ -56,6 +64,11 @@
   the same values, minus the keys the codec's read leaves out."
   [^com.acme.fixtures.wire.p3.Leaf m]
   {:id (.getId m)})
+(defn- proto->Leaf--slot-map
+  "Leaf as a plain map, read from the compiled arm's slots:
+  the same values, minus the keys the codec's read leaves out."
+  [msg]
+  {:id (let [v (rt/slot msg 0)] (if (nil? v) "" v))})
 
 (defrecord Wire [i32 i64 u32 u64 s32 s64 f32 f64 sf32 sf64 flt dbl flag str raw color leaf packed unpacked packed-s64 packed-dbl colors leaves names by-id by-color pick-str pick-i64 pick-leaf opt-i32 opt-str high huge])
 (def Wire-prototype (rt/message file-descriptor "Wire" "com.acme.fixtures.wire.p3.Wire"))
@@ -172,7 +185,8 @@
   "protobuf -> a Wire record. Absent fields are nil."
   ([msg] (proto->Wire msg nil))
   ([^com.google.protobuf.Message msg opts]
-   (if (and (nil? opts) (instance? com.acme.fixtures.wire.p3.Wire msg))
+   (cond
+     (and (nil? opts) (instance? com.acme.fixtures.wire.p3.Wire msg))
      (let [^com.acme.fixtures.wire.p3.Wire m msg]
        (->Wire
         (.getI32 m)
@@ -209,6 +223,45 @@
         (.getHigh m)
         (.getHuge m)
         ))
+
+     (and (nil? opts) (rt/compiled-message? msg))
+     (->Wire
+      (let [v (rt/slot msg 0)] (if (nil? v) (int 0) v))
+      (let [v (rt/slot msg 1)] (if (nil? v) 0 v))
+      (let [v (rt/slot msg 2)] (if (nil? v) (int 0) v))
+      (let [v (rt/slot msg 3)] (if (nil? v) 0 v))
+      (let [v (rt/slot msg 4)] (if (nil? v) (int 0) v))
+      (let [v (rt/slot msg 5)] (if (nil? v) 0 v))
+      (let [v (rt/slot msg 6)] (if (nil? v) (int 0) v))
+      (let [v (rt/slot msg 7)] (if (nil? v) 0 v))
+      (let [v (rt/slot msg 8)] (if (nil? v) (int 0) v))
+      (let [v (rt/slot msg 9)] (if (nil? v) 0 v))
+      (let [v (rt/slot msg 10)] (if (nil? v) (float 0.0) v))
+      (let [v (rt/slot msg 11)] (if (nil? v) 0.0 v))
+      (let [v (rt/slot msg 12)] (if (nil? v) false v))
+      (let [v (rt/slot msg 13)] (if (nil? v) "" v))
+      (let [v (rt/slot msg 14)] (if (nil? v) (byte-array 0) (.toByteArray ^com.google.protobuf.ByteString v)))
+      (let [v (rt/slot msg 15)] (if (nil? v) :OPEN_UNSPECIFIED (case v 0 :OPEN_UNSPECIFIED 1 :OPEN_A 2 :OPEN_B (codec/get-field msg Wire--color nil))))
+      (when-some [v (rt/slot msg 16)] (proto->Leaf--slot-map v))
+      (let [^java.util.List l (rt/slot msg 17)] (when (and l (pos? (.size l))) (vec l)))
+      (let [^java.util.List l (rt/slot msg 18)] (when (and l (pos? (.size l))) (vec l)))
+      (let [^java.util.List l (rt/slot msg 19)] (when (and l (pos? (.size l))) (vec l)))
+      (let [^java.util.List l (rt/slot msg 20)] (when (and l (pos? (.size l))) (vec l)))
+      (codec/get-field msg Wire--colors nil)
+      (let [^java.util.List l (rt/slot msg 22)] (when (and l (pos? (.size l))) (persistent! (reduce (fn [acc v] (conj! acc (proto->Leaf--slot-map v))) (transient []) l))))
+      (let [^java.util.List l (rt/slot msg 23)] (when (and l (pos? (.size l))) (vec l)))
+      (let [^java.util.Map jm (rt/slot msg 24)] (when (and jm (pos? (.size jm))) (persistent! (reduce (fn [acc ^java.util.Map$Entry e] (assoc! acc (.getKey e) (proto->Leaf--slot-map (.getValue e)))) (transient {}) (.entrySet jm)))))
+      (codec/get-field msg Wire--by-color nil)
+      (rt/slot msg 26)
+      (rt/slot msg 27)
+      (when-some [v (rt/slot msg 28)] (proto->Leaf--slot-map v))
+      (rt/slot msg 29)
+      (rt/slot msg 30)
+      (let [v (rt/slot msg 31)] (if (nil? v) "" v))
+      (let [v (rt/slot msg 32)] (if (nil? v) (int 0) v))
+      )
+
+     :else
      (->Wire
       (codec/get-field msg Wire--i32 opts)
       (codec/get-field msg Wire--i64 opts)
