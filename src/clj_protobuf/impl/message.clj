@@ -752,6 +752,12 @@
   [^CompiledMessage m ^long slot]
   (aget ^objects (.-slots m) slot))
 
+(defn builder-field
+  "The compiled field a builder's slot index names — what a write-side
+  coercion needs to know the field's kind without a FieldHandle."
+  ^CompiledField [^CompiledBuilder b ^long slot]
+  (aget ^objects (.-fields ^CompiledType (.-type b)) slot))
+
 (defn set-slot!
   "Store a slot-representation value on a compiled builder: a default on a
   field without presence is stored as nil, and a oneof member clears its

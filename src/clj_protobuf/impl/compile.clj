@@ -67,6 +67,13 @@
             key-type        ; map key type name
             val-type        ; map value type name
             val-enum-type   ; map value EnumDescriptor, enum-valued maps only
+            enum-numbers    ; {keyword -> Integer}, enum kind only: what a
+                            ; write-side coercion needs to turn a Clojure enum
+                            ; into its slot representation without a pool
+                            ; lookup and a string concat per call
+            key-kind        ; map fields: the entry key's kind keyword
+            val-kind        ; map fields: the entry value's kind keyword
+            val-enum-numbers ; {keyword -> Integer}, enum-valued maps only
             nested])        ; delay of the nested CompiledType (message kind; map: the value type)
 
 (defrecord CompiledType
@@ -114,6 +121,18 @@
       (if (instance? Descriptors$EnumValueDescriptor d)
         (Integer/valueOf (.getNumber ^Descriptors$EnumValueDescriptor d))
         d))))
+
+(defn- enum-number-table
+  "{keyword -> Integer} for an enum descriptor, built once per field. Aliased
+  values resolve through findValueByNumber so every name that shares a number
+  maps to the number that number reads back as — the rule 0.2.3 established
+  for the read side, applied to the write side."
+  [^Descriptors$EnumDescriptor et]
+  (when et
+    (into {}
+          (map (fn [^Descriptors$EnumValueDescriptor v]
+                 [(keyword (.getName v)) (Integer/valueOf (.getNumber v))]))
+          (.getValues et))))
 
 (defn- known-numbers
   "For a closed enum, the set of declared numbers; nil for open enums,
@@ -185,6 +204,11 @@
       :key-type (when map-field (type-name key-fd))
       :val-type (when map-field (type-name val-fd))
       :val-enum-type (when (and map-field (= :enum (kind-of val-fd))) (.getEnumType val-fd))
+      :enum-numbers (when (= kind :enum) (enum-number-table (.getEnumType fd)))
+      :key-kind (when map-field (kind-of key-fd))
+      :val-kind (when map-field (kind-of val-fd))
+      :val-enum-numbers (when (and map-field (= :enum (kind-of val-fd)))
+                          (enum-number-table (.getEnumType val-fd)))
       :nested (cond
                 map-field (when (= :message (kind-of val-fd)) (nested-of (.getMessageType val-fd)))
                 (= kind :message) (nested-of (.getMessageType fd)))})))

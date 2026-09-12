@@ -402,6 +402,86 @@
       (let [p3 (wp3/Wire->proto {:i32 0})]
         (is (nil? (rt/slot p3 (rt/slot-of (rt/field wp3/Wire-prototype "i32")))))))))
 
+(deftest the-typed-write-path
+  ;; codec/slot-set! is the write-side mirror of rt/slot, and the asymmetry
+  ;; between them is the point: a read hands back what the slot holds, a write
+  ;; has to coerce into it. These check that the coercion is equivalent to
+  ;; set-field!'s — byte for byte, which is the only standard that matters —
+  ;; and then each of the three traps that put the coercion in the runtime
+  ;; rather than in emitted code.
+  (let [proto (compiled wp2/Wire-prototype)
+        d (desc wp2/Wire-prototype)
+        by-name (fn [nm] (rt/field wp2/Wire-prototype nm))
+        fields {"i32" -7, "i64" -8, "flt" (float 2.5), "dbl" 3.5, "flag" true
+                "str" "s", "raw" (byte-array [4 5 6]), "color" :CLOSED_B
+                ;; message-valued fields take a built message: emitted code
+                ;; calls the nested X->proto, the runtime does not recurse
+                "leaf" (wp2/Leaf->proto {:id "n"})
+                "unpacked" [1 2 3], "names" ["a" "b"]
+                "by_id" {1 (wp2/Leaf->proto {:id "y"})}
+                "by_color" {"k" :CLOSED_A}}]
+    (testing "slot-set! and set-field! build byte-identical messages"
+      (let [via-handles (reduce-kv (fn [b nm v] (codec/set-field! b (by-name nm) v))
+                                   (.newBuilderForType ^Message proto) fields)
+            via-slots (reduce-kv (fn [b nm v]
+                                   (codec/slot-set! b (rt/slot-of (by-name nm)) v))
+                                 (.newBuilderForType ^Message proto) fields)]
+        (is (java.util.Arrays/equals (.toByteArray ^Message (.build via-handles))
+                                     (.toByteArray ^Message (.build via-slots))))))
+    (testing "a value that needs coercing is elided when it equals an implicit default"
+      ;; the trap: set-slot! elides via (.equals default v), and
+      ;; (Integer. 0).equals (Long. 0) is FALSE. An uncoerced Clojure 0 would
+      ;; be stored live and serialize a field proto3 says must not appear —
+      ;; a byte difference nothing but a byte comparison would catch.
+      (let [p3 (compiled wp3/Wire-prototype)
+            i32 (rt/slot-of (rt/field wp3/Wire-prototype "i32"))
+            coerced (-> (.newBuilderForType ^Message p3) (codec/slot-set! i32 0) (.build))
+            raw (doto (.newBuilderForType ^Message p3) (message/set-slot! i32 (long 0)))]
+        (is (zero? (alength (.toByteArray ^Message coerced)))
+            "coerced through slot-set!: elided, as protobuf requires")
+        (is (pos? (alength (.toByteArray ^Message (.build raw))))
+            "stored raw: serialized — which is why the coercion cannot live in emitted code")))
+    (testing "nil is ignored, so writing a oneof's members in order keeps the last set"
+      (let [pick-str (rt/slot-of (by-name "pick_str"))
+            pick-i64 (rt/slot-of (by-name "pick_i64"))
+            m (-> (.newBuilderForType ^Message proto)
+                  (codec/slot-set! pick-str "chosen")
+                  (codec/slot-set! pick-i64 nil)
+                  (.build))]
+        (is (= "chosen" (.getField ^Message m (fd d "pick_str")))
+            "a nil sibling did not clear it")))
+    (testing "a nested message in another representation is repaired, not stored"
+      ;; emitted code calls the nested X->proto, which resolves its own
+      ;; prototype — with generated classes present for one file and absent for
+      ;; another it can hand back a message of the wrong representation
+      (let [leaf-d (.getMessageType (fd d "leaf"))
+            foreign (-> (DynamicMessage/newBuilder leaf-d)
+                        (.setField (fd leaf-d "id") "n")
+                        (.build))
+            repaired (-> (.newBuilderForType ^Message proto)
+                         (codec/slot-set! (rt/slot-of (by-name "leaf")) foreign)
+                         (.build))
+            ;; what emitted code actually passes: the nested X->proto's result
+            native (-> (.newBuilderForType ^Message proto)
+                       (codec/slot-set! (rt/slot-of (by-name "leaf"))
+                                        (wp2/Leaf->proto {:id "n"}))
+                       (.build))]
+        (is (rt/compiled-message? (rt/slot repaired (rt/slot-of (by-name "leaf"))))
+            "the slot holds a compiled message, not the foreign one")
+        (is (java.util.Arrays/equals (.toByteArray ^Message repaired)
+                                     (.toByteArray ^Message native)))))
+    (testing "a map is refused: the emitter owns recursion, not the runtime"
+      ;; deliberate. Building a nested message here would need the child
+      ;; handles and kebab keys that live on a FieldHandle, and slot-set! has
+      ;; only a CompiledField — reaching for them is the per-field deref this
+      ;; path exists to remove.
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (codec/slot-set! (.newBuilderForType ^Message proto)
+                                    (rt/slot-of (by-name "leaf")) {:id "n"}))))
+    (testing "a wrong type is an error naming the field, not a cast failure later"
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (codec/slot-set! (.newBuilderForType ^Message proto) (rt/slot-of (by-name "i32")) "nope"))))))
+
 (deftest required-fields-through-a-cycle
   ;; A -> B (field 1) and A -> C (field 2); B -> A; C holds the required
   ;; field. Walking A reaches B FIRST, and B's only edge is back to A, which

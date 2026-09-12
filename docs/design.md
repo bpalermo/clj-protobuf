@@ -10,8 +10,11 @@ what keeps the two dependency graphs acyclic.
 
 ## The contract
 
-Generated code calls exactly six symbols from this library, with hardcoded
-aliases:
+Generated code calls ten symbols from this library, with hardcoded aliases.
+Six are the original contract, which every generated file in existence uses;
+four were added for the typed paths (0.3.0's reads, 0.4.0's writes) and are
+emitted only by plugins new enough to know about them, always alongside a
+fallback to the six. A generated file that never heard of them still works.
 
 | call | provides |
 |---|---|
@@ -20,6 +23,10 @@ aliases:
 | `rt/message fd "Outer.Inner" hint?` | a prototype per message (see pools, below) |
 | `rt/field prototype "proto_name"` | a precomputed `FieldHandle` per field |
 | `codec/set-field! b handle v opts` | one field, record/map → builder |
+| `rt/compiled-message? msg` | 0.3.0: which arm a message is on, so emitted code can branch |
+| `rt/slot msg i` | 0.3.0: one slot by declaration index, no descriptor lookup |
+| `rt/slot-of handle` | 0.3.0: that index at generation time |
+| `codec/slot-set! b i v` | 0.4.0: coerce a Clojure value into one slot |
 | `codec/get-field msg handle opts` | one field, message → Clojure value |
 
 Everything else — `clj-protobuf.core`'s `encode`/`decode`, opts, errors — is
@@ -188,6 +195,36 @@ compare a value against its own source; what can genuinely break is the
 compiler's slot array ceasing to be indexed by declaration order, and that is
 what the test checks. `//test:message_test`'s typed-read suite is where the
 promise is kept.
+
+The write direction is not the mirror of the read direction, and the
+asymmetry is the design rather than an oversight. A read hands back what the
+slot holds, because a slot already holds the Clojure value. A write cannot:
+a record's `:n` may be a `Long` where an `int32` slot must hold an `Integer`,
+so something has to coerce. That something is `codec/slot-set!` and not
+emitted code, for three reasons, each of which was a bug waiting in the
+alternative.
+
+A coercion baked into checked-in generated files is a contract nobody can
+change afterwards; behind a symbol it is a patch release. The elision rule
+for a field without presence compares against the slot's default with
+`.equals`, and `Integer(0).equals(Long(0))` is false — so an uncoerced
+Clojure `0` would be stored live and serialize a field protobuf says must not
+appear, a byte difference only `//test:byte_identity_test` would catch. And
+writing `nil` clears a oneof's siblings, so a generated file writing a
+oneof's members in declaration order with a `nil` among them would clear the
+member it had just set; `slot-set!` ignores `nil` so that every generated
+file cannot get this wrong rather than each one having to get it right.
+
+Message-valued fields are verified rather than trusted. Emitted code calls
+the nested `X->proto`, which builds through that type's *own* prototype,
+resolved independently of this one — so with generated classes present for
+one file and absent for another it can hand back a generated Java message
+where a slot must hold a compiled one. The emitter cannot promise otherwise,
+so `slot-set!` refuses to store a wrong one: identical descriptor on a
+compiled message is the fast path, the same type in another representation is
+rebuilt through `newBuilderForType`/`mergeFrom`/`build`, anything else is an
+error naming the field. That is what `message-value` already does for
+`set-field!`, on the same grounds.
 
 The kill switch is a JVM system property, `clj-protobuf.codec=dynamic`,
 read once at load — `rt/message` runs when a generated namespace loads,
