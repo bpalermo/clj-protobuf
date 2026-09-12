@@ -226,6 +226,22 @@ rebuilt through `newBuilderForType`/`mergeFrom`/`build`, anything else is an
 error naming the field. That is what `message-value` already does for
 `set-field!`, on the same grounds.
 
+What the write path is worth, measured rather than assumed: **nothing, on the
+stack it was built for.** protoc-gen-clojure emitted against `slot-set!` on a
+branch and clj-grpc's soak measured a one-variable pair — within ±1% on every
+shape at the knee, on both executors at one and eight connections, and up to
+7% per message below the knee on one configuration. The emission removed
+`set-field!`'s per-field dispatch, but the carrier was paying for the
+coercion and the field write, and those did not go away: they moved behind
+this symbol. The read path banked 4–9% in the same harness; this did not.
+
+So the symbol stays, additive and harmless, and the emission that would use
+it is unreleased. It is documented here as designed rather than deleted
+because the design is sound and the rationale above is worth keeping — but
+anyone reaching for it as a performance lever should know it was already
+tried, on a real service, and came back nil. The per-field layer is not where
+streaming cost lives on that stack.
+
 The kill switch is a JVM system property, `clj-protobuf.codec=dynamic`,
 read once at load — `rt/message` runs when a generated namespace loads,
 under AOT or inside a native image, where binding a Var first is
