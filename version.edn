@@ -89,4 +89,21 @@
 ;; the literal and skip the call. protoc-gen-clojure 0.7.0 does exactly that,
 ;; and it works against 0.3.0 — this only puts the promise in the artifact a
 ;; consumer reads rather than leaving it in this repo's tests and docs.
-{:version "0.3.1"}
+;; 0.4.0: codec/slot-set!, the typed write path's surface — the mirror of
+;; 0.3.0's rt/slot, and deliberately not symmetric with it. A read hands back
+;; what the slot holds; a write has to coerce into it, because a record's :n
+;; may be a Long where an int32 slot must hold an Integer. So the coercion
+;; lives behind this symbol rather than in emitted code, and each reason was a
+;; bug waiting in the alternative: a coercion baked into checked-in generated
+;; files can never be changed, Integer(0).equals(Long(0)) is false so an
+;; uncoerced zero serialises a field that must not appear, and writing nil
+;; clears a oneof's siblings.
+;;
+;; A minor for the same reason 0.3.0 was: what it COMMITS. The representation
+;; contract now runs in both directions, and message-valued slots are verified
+;; rather than trusted — emitted code cannot promise a compiled message, so
+;; the runtime refuses to store anything else.
+;;
+;; Also here: a nested type's parser resolves once instead of on every nested
+;; message read.
+{:version "0.4.0"}
