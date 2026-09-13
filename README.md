@@ -51,7 +51,6 @@ Records and plain maps are interchangeable everywhere a message value goes.
   and nothing else.
 - **Unknown fields** survive on parsed `Message`s but are necessarily dropped
   by a record round trip; `pb/unknown-fields` inspects them when it matters.
-
 ## Performance
 
 Generated code carries a Java-class hint per message. When the matching
@@ -65,174 +64,38 @@ suites prove all of them against protoc's own Java backend), and
 `-Dclj-protobuf.codec=dynamic` brings `DynamicMessage` back if you ever need
 the reference implementation.
 
-Measured with `bazel run //bench:run -- quick` (criterium; JDK 21, Linux
-x86_64; mean latency / allocated bytes per op; full Clojure-data-to-bytes
-pipelines). `java` is protoc's generated builders driven directly — and, on
-decode, parsing only, since protoc's classes are not a Clojure-data path;
-`hinted` is clj-protobuf with the generated classes on the classpath;
-`interop` is protoc-gen-clojure's `interop=true` output, the same prototypes
-as `hinted` driven through direct Java accessors instead of the codec;
-`compiled` is clj-protobuf without the generated classes; `jsonista` and
-`data.json` carry the same value as JSON.
+Roughly: at production shape (~1 KB) protobuf beats JSON in both directions
+and wins decode by more than 2x; the compiled arm is within 1.7x of the
+hinted arm at worst and beats it on most decode shapes; and cost tracks the
+number of FIELDS in a message rather than its size — two shapes at the same
+1 KB but 30 against 120 leaf values differ 3.6x on decode.
 
-This repository builds its own library with Clojure's direct linking on, so
-these numbers include it — 5-18% depending on shape, and the lever described
-below rather than a separate one, so do not count it twice. A consumer
-running the same code without it is a few percent slower on every clj-protobuf
-row:
-
-### Encode (Clojure data → bytes)
-
-| shape | java | hinted | interop | compiled | jsonista | data.json |
-|---|---|---|---|---|---|---|
-| tiny | 45 ns / 56 B | 154 ns / 96 B | 95 ns / 96 B | 260 ns / 192 B | 470 ns / 608 B | 919 ns / 624 B |
-| flat | 817 ns / 400 B | 1.19 µs / 488 B | 858 ns / 400 B | 1.37 µs / 440 B | 1.46 µs / 1248 B | 3.81 µs / 2208 B |
-| deep | — | 868 ns / 552 B | 411 ns / 368 B | 880 ns / 560 B | 801 ns / 1080 B | 2.52 µs / 1392 B |
-| wide-repeated | — | 3.65 µs / 3088 B | 3.72 µs / 3088 B | 2.84 µs / 2088 B | 2.55 µs / 1096 B | 6.89 µs / 4216 B |
-| repeated-messages | 2.11 µs / 2312 B | 5.14 µs / 2840 B | 4.52 µs / 2840 B | 5.89 µs / 3000 B | 3.79 µs / 4024 B | 17.43 µs / 10424 B |
-| map-heavy | — | 10.13 µs / 7512 B | 16.80 µs / 7512 B | 6.90 µs / 4736 B | 4.25 µs / 3616 B | 17.36 µs / 10720 B |
-| enum-heavy | — | 1.43 µs / 480 B | 1.44 µs / 480 B | 1.41 µs / 336 B | 1.32 µs / 1168 B | 4.82 µs / 2952 B |
-| realistic | — | 4.45 µs / 3672 B | 4.29 µs / 3576 B | 5.42 µs / 3528 B | 6.29 µs / 4024 B | 13.29 µs / 8904 B |
-| dense | — | 12.12 µs / 7760 B | 10.61 µs / 7664 B | 16.05 µs / 7496 B | 18.32 µs / 11256 B | 45.91 µs / 24880 B |
-
-### Decode (bytes → Clojure data)
-
-| shape | java | hinted | interop | compiled | jsonista | data.json |
-|---|---|---|---|---|---|---|
-| tiny | 79 ns / 192 B | 164 ns / 232 B | 128 ns / 232 B | 163 ns / 216 B | 639 ns / 1136 B | 740 ns / 1584 B |
-| flat | 396 ns / 432 B | 837 ns / 600 B | 444 ns / 600 B | 458 ns / 520 B | 2.28 µs / 2168 B | 2.91 µs / 5816 B |
-| deep | — | 856 ns / 1024 B | 372 ns / 1024 B | 323 ns / 760 B | 1.28 µs / 2128 B | 1.28 µs / 3840 B |
-| wide-repeated | — | 2.27 µs / 4352 B | 2.38 µs / 4352 B | 2.71 µs / 4208 B | 3.17 µs / 4104 B | 2.94 µs / 11496 B |
-| repeated-messages | 1.66 µs / 3328 B | 4.75 µs / 5360 B | 2.42 µs / 5352 B | 3.25 µs / 4696 B | 10.72 µs / 10080 B | 15.91 µs / 25096 B |
-| map-heavy | — | 12.45 µs / 12136 B | 15.23 µs / 13072 B | 12.50 µs / 10088 B | 8.51 µs / 5776 B | 11.53 µs / 22288 B |
-| enum-heavy | — | 1.94 µs / 1056 B | 1.36 µs / 1056 B | 1.30 µs / 856 B | 2.94 µs / 2840 B | 3.38 µs / 7240 B |
-| realistic | — | 3.14 µs / 4280 B | 1.61 µs / 4272 B | 1.52 µs / 3656 B | 7.39 µs / 6872 B | 10.63 µs / 18768 B |
-| dense | — | 10.79 µs / 11648 B | 5.49 µs / 11640 B | 6.72 µs / 10136 B | 24.15 µs / 19760 B | 37.67 µs / 57016 B |
-
-The `compiled` column changed shape with protoc-gen-clojure 0.7.0, which is
-worth knowing if you are comparing against an older copy of this table.
-Generated `proto->X` now reads the compiled arm's slots directly instead of
-calling the codec once per field, so decode improved on everything a field
-loop dominates. Measured properly — both emissions in one JVM, so a busy
-machine moves them together and the ratio survives — that is −37% to −47% on
-the six field-dense shapes and nil on the three where building collections is
-the cost. The cross-run differences you can compute from an old table will be
-noisier than those figures; trust the controlled ones.
-
-The last two rows are one message at production size carried two ways, and
-they are the only rows here that separate the two things that drive cost.
-`realistic` is 1025 bytes across 30 leaf values with its bulk in a single
-string; `dense` is 1030 bytes across 120, spread over many small line items.
-Almost the same wire size, four times the fields — and on the compiled arm
-decode goes from 2.72 µs to 9.81 µs, a factor of 3.6 against a field ratio of
-4. **Cost tracks field count, not bytes.** A large value is close to free per
-byte; every field is not. Size a message by counting its fields.
-
-`quick` trades accuracy for time, and two kinds of cell move between runs of
-it. The sub-100-ns ones: the `java` column on `tiny` decode has come out
-anywhere from 65 to 99 ns. And the largest-working-set row: `map-heavy` is
-the most machine-sensitive shape here — its `interop` cells in this run sit
-well above where quieter runs put them, and under a noisy host we have
-watched that row move 89% on arms that could not have changed. Treat any
-single `map-heavy` figure as the least reliable number on the page. Under the full `bazel run //bench:run`, `Tiny/parseFrom` measured
-76.7 ns and 66.8 ns in one JVM — the same call, twice — with interop's whole
-decode pipeline at 71.4 ns against it and the hinted arm at 119.9 ns. Read
-the small shapes as "interop reaches protoc's parse floor", not as a
-ranking between the two.
-
-One more lever, measured on a real gRPC service rather than here: this jar
-ships as source, so Clojure compiles these namespaces when they load, and
-`-Dclojure.compiler.direct-linking=true` on the JVM turns every call between
-them into a static call. On a 1-CPU gRPC server echoing 1 KB messages that
-was worth 5–17% of CPU per request depending on shape and rate, and removed a
-load-shedding cliff at the top of the ramp. The property is process-wide and
-changes late binding for everything loaded from source — `with-redefs` on a
-linked call site stops taking effect — so turn it on deliberately, in
-production images rather than at the REPL.
-
-A Bazel consumer has a second route: from rules_clj 0.2.5 a source-only
-dependency's namespaces can be compiled in the consumer's own build, which
-is what lets a direct-linked target call into a library published as source.
-That is rules_clj's mechanism rather than this library's, and its docs are
-the place to read it; the jar published here stays source either way, so
-that generated records and call sites specialize against the Clojure and
-protobuf-java versions the consumer actually builds with.
-
-Read it honestly. Against protoc's own generated code the hinted arm is
-roughly 2× on tiny messages and closer on wider ones; the compiled arm is
-within 1.7× of the hinted arm at worst on encode, and now beats it on most
-decode shapes by a wide margin, because a slot read is cheaper than a
-typed-accessor call and, since 0.7.0, generated code makes that read
-directly. `interop=true`
-beats the hinted arm everywhere except the two collection-heavy decode rows,
-where they are a wash — building the Clojure collection is the row, not the
-accessor — and it allocates exactly what the hinted arm does, since both
-produce the same Clojure values from the same generated classes. Against JSON, and this is the
-comparison the production rows change: at ~1 KB protobuf wins both
-directions and decode by a wide margin — 2.72 µs against jackson's 7.65 on
-`realistic`, 9.81 against 22.17 on `dense`. On the smaller archetypes it is
-narrower: protobuf wins both directions on the small and nested shapes and
-wins decode on lists of messages, while jackson wins encoding every
-collection-heavy shape and also wins map-heavy decode — building a 50-entry Clojure map is
-most of that row, and protobuf pays for entry messages on top. Before 0.2.0
-the arm without generated classes was `DynamicMessage`, two to three times
-slower than the compiled one on decode. Wire compactness and schema are
-protobuf's argument regardless, and the shapes are archetypes precisely
-because no single number describes "protobuf vs JSON".
+Tables for every arm and shape, the corpus they were measured on, and the
+caveats that come with them are in **[docs/performance.md](docs/performance.md)**.
 
 The `interop` column needs protoc's Java classes at load time — that is the
 `interop=true` contract — and it is emitted code, not a runtime switch: it
 comes from protoc-gen-clojure 0.6.0 or later, which emits direct accessor
 calls in both directions (writes were typed earlier). `//test:interop_test`
 holds it to the same bytes and the same values as the codec path, and
-`//bench:smoke_test` holds every arm in these tables to byte-identical
-output.
+`//bench:smoke_test` holds every benchmark arm to byte-identical output.
 
-Do not read the `interop` column as a CPU win, though — this is the clearest
-case in these tables of a microbenchmark not surviving contact with a whole
-request path. Measured on a real gRPC service rather than here, with
-everything else held constant, `interop=true` returns 15–45% lower p50
-because the conversion work moves out of the codec and into protoc's
-generated accessors almost one for one, so the total barely changes and only
-its distribution does.
+### Direct linking, before you turn it on
 
-Its effect on *CPU* is the part worth reading carefully, because the honest
-answer is that it depends on core count and the published comparison was
-partly measuring a defect of ours. On a 1-CPU pod interop cost 3–8% more CPU
-per request. On two cores the sign flipped and it cost 10–14% less — on
-unchanged images, which is hard to explain by anything except contention,
-since contention cannot exist on one core. That contention was this
-library's, not protoc's: until 0.2.5 the compiled arm reached a process-wide
-monitor on every message built (see `//bench:contention`).
+This jar ships as source, so Clojure compiles these namespaces when they load
+and `-Dclojure.compiler.direct-linking=true` on the JVM turns every call
+between them into a static call. It is worth real CPU (numbers in
+[docs/performance.md](docs/performance.md)), but the property is process-wide
+and changes late binding for everything loaded from source — `with-redefs` on
+a linked call site stops taking effect. Turn it on deliberately, in
+production images rather than at the REPL.
 
-That re-measurement has since run, and it is worth reporting as it came out
-rather than as it was predicted. On 0.2.5 the monitor is confirmed gone from
-the profile — the frame is absent where it was 0.85% of CPU — and the
-compiled arm's CPU per message fell about 3%, narrowing interop's lead from
-roughly 10% to 7.5%. The prediction was that it would close to the 1–4% the
-single-core runs showed. It did not.
-
-The residual is still unexplained, and the reason has since turned out to be
-that the measurement was bound by something outside the process entirely: the
-host was saturated. The node ran 4.11 of its 4 cores while the pod sat inside
-a 2-core quota that was never throttled, because kernel softirq and overlay
-networking are charged to the node rather than to the pod's cgroup — so no
-pod-level counter in that harness could see the wall either arm was against.
-A thread-scaling win has little room to appear on a machine with nothing left
-to schedule, which makes the 3% a floor rather than an estimate of what the
-fix is worth.
-
-So: interop's latency advantage is solid, its CPU advantage on multi-core is
-real but smaller than the pre-0.2.5 numbers said and not fully accounted for.
-If you are choosing on a multi-core pod, measure your own shape rather than
-trusting any of these numbers.
-
-Every number above is single-threaded, and that is worth saying because it
-is a question these tables cannot answer. Both arms scale close to linearly
-across threads — `bazel run //bench:contention` measures it, with the hinted
-arm as a control, because until 0.2.5 the compiled arm did not: two
-process-wide synchronized caches on the per-message path capped its encode at
-one thread's throughput no matter how many you gave it.
+A Bazel consumer has a second route: from rules_clj 0.2.5 a source-only
+dependency's namespaces can be compiled in the consumer's own build, which is
+what lets a direct-linked target call into a library published as source.
+The jar published here stays source either way, so that generated records and
+call sites specialize against the Clojure and protobuf-java versions the
+consumer actually builds with.
 
 ## Building
 
