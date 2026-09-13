@@ -8,6 +8,10 @@ plugin depends on nothing but protobuf-java and owns *emission*; this library
 owns *behavior*, including the behavioral tests of emitted code — which is
 what keeps the two dependency graphs acyclic.
 
+Measured numbers for every arm and shape, and what they do and do not
+support, are in [performance.md](performance.md). This document is the design;
+that one is the evidence.
+
 ## The contract
 
 Generated code calls ten symbols from this library, with hardcoded aliases.
